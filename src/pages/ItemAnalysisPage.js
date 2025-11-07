@@ -333,6 +333,8 @@ const ItemAnalysisPage = () => {
         )}
       </div>
 
+      // ... (kode lainnya tetap sama hingga bagian modal)
+
       {/* Modal Detail Unit */}
       {detailModal && (
         <div className="modal-overlay" onClick={closeModal}>
@@ -342,23 +344,6 @@ const ItemAnalysisPage = () => {
               <button className="close-btn" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
-              {/* Filter Tahun */}
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ marginRight: '8px' }}>Tahun:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => {
-                    const year = Number(e.target.value);
-                    handleShowDetail(detailModal.namaBarang); // Re-fetch dengan tahun baru
-                  }}
-                  style={{ padding: '6px', marginRight: '12px' }}
-                >
-                  <option value={2025}>2025</option>
-                  <option value={2024}>2024</option>
-                  <option value={2023}>2023</option>
-                </select>
-              </div>
-
               {/* Harga Satuan */}
               <p><strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}</p>
 
@@ -391,6 +376,7 @@ const ItemAnalysisPage = () => {
           </div>
         </div>
       )}
+
 
       {/* Inline Styles untuk Modal & UI */}
       <style jsx>{`

@@ -1,4 +1,3 @@
-// src/pages/UnitAnalysisPage.js
 import React, { useEffect, useState, useMemo } from 'react';
 import { Bar, Line, Scatter, Radar } from 'react-chartjs-2';
 import {
@@ -45,14 +44,14 @@ const getBlueGradientColor = (index, total) => {
 };
 
 const UnitAnalysisPage = () => {
-  const [selectedYear, setSelectedYear] = useState(2025);
+  // === Perbaikan 1: Default ke semua tahun ===
+  const [selectedYears, setSelectedYears] = useState([2023, 2024, 2025]);
   const [topRequesters, setTopRequesters] = useState([]);
   const [topSpendingUnits, setTopSpendingUnits] = useState([]);
   const [allUnits, setAllUnits] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
-  const [modalYear, setModalYear] = useState(2025);
   const [unitItems, setUnitItems] = useState([]);
   const [selectedItemForChart, setSelectedItemForChart] = useState(null);
 
@@ -65,45 +64,73 @@ const UnitAnalysisPage = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
 
-  // === Fetch Top 5 Unit Pemohon (berdasarkan permintaan unit) ===
+  const ALL_YEARS = [2023, 2024, 2025];
+
+  // Toggle tahun
+  const toggleYear = (year) => {
+    if (selectedYears.includes(year)) {
+      const newSelection = selectedYears.filter(y => y !== year);
+      setSelectedYears(newSelection.length ? newSelection : ALL_YEARS);
+    } else {
+      setSelectedYears([...selectedYears, year]);
+    }
+  };
+
+  // Toggle "Semua Tahun"
+  const toggleAllYears = () => {
+    if (selectedYears.length === ALL_YEARS.length) {
+      setSelectedYears([2025]); // Jika semua dipilih, unselect ke 2025 saja
+    } else {
+      setSelectedYears([...ALL_YEARS]); // Jika tidak semua dipilih, pilih semua
+    }
+  };
+
+  // === Perbaikan 2: Fetch SEMUA data grafik (Top Requesters, Top Spending, Scatter) berdasarkan selectedYears ===
   useEffect(() => {
-    const fetchTopRequesters = async () => {
+    const fetchAggregatedData = async () => {
+      const yearsParam = selectedYears.includes(2023) && selectedYears.includes(2024) && selectedYears.includes(2025)
+        ? "all"
+        : selectedYears.join(",");
+
       try {
-        const res = await fetch(`http://localhost:8000/api/top-requesters?years=${selectedYear}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setTopRequesters(data.topRequesters || []);
+        const [topReqRes, topSpenRes, scatterRes] = await Promise.all([
+          fetch(`http://localhost:8000/api/top-requesters?years=${yearsParam}`),
+          fetch(`http://localhost:8000/api/top-spending-units?years=${yearsParam}`),
+          fetch(`http://localhost:8000/api/unit-scatter-data?years=${yearsParam}`), // Pastikan API ini menerima `years`
+        ]);
+
+        if (!topReqRes.ok || !topSpenRes.ok || !scatterRes.ok) {
+          throw new Error('Gagal mengambil data agregat');
+        }
+
+        const topReqData = await topReqRes.json();
+        const topSpenData = await topSpenRes.json();
+        const scatterDataRes = await scatterRes.json();
+
+        setTopRequesters(topReqData.topRequesters || []);
+        setTopSpendingUnits(topSpenData.topSpendingUnits || []);
+        setScatterData(scatterDataRes.units || []);
+
       } catch (error) {
-        console.error('Gagal memuat top requesters:', error);
+        console.error('Gagal memuat data agregat:', error);
         setTopRequesters([]);
-      }
-    };
-    fetchTopRequesters();
-  }, [selectedYear]);
-
-  // === Fetch Top 10 Unit Pemohon (berdasarkan total pengeluaran) ===
-  useEffect(() => {
-    const fetchTopSpending = async () => {
-      try {
-        const res = await fetch(`http://localhost:8000/api/top-spending-units?years=${selectedYear}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setTopSpendingUnits(data.topSpendingUnits || []);
-      } catch (error) {
-        console.error('Gagal memuat top spending units:', error);
         setTopSpendingUnits([]);
+        setScatterData([]);
       }
     };
-    fetchTopSpending();
-  }, [selectedYear]);
 
-  // === Fetch Daftar Semua Unit ===
+    fetchAggregatedData();
+  }, [selectedYears]); // Efek ini dijalankan setiap kali `selectedYears` berubah
+
+  // === Fetch Daftar Semua Unit (Tidak terpengaruh oleh filter tahun) ===
   useEffect(() => {
     const fetchUnits = async () => {
       try {
         const res = await fetch('http://localhost:8000/api/unit-pemohon-list');
         const data = await res.json();
-        setAllUnits(data.units || []);
+        // Urutkan unit secara ascending berdasarkan UnitPemohon
+        const sortedUnits = (data.units || []).sort((a, b) => a.UnitPemohon.localeCompare(b.UnitPemohon));
+        setAllUnits(sortedUnits);
         setAvailableUnitsForRadar(data.units?.map(u => u.UnitPemohon) || []);
       } catch (error) {
         console.error('Gagal memuat daftar unit:', error);
@@ -114,40 +141,23 @@ const UnitAnalysisPage = () => {
     fetchUnits();
   }, []);
 
-  // === Fetch Scatter Data ===
+  // === Fetch Radar Data ===
   useEffect(() => {
-    const fetchScatter = async () => {
+    const fetchRadar = async (unit, setter) => {
+      if (!unit) return;
       try {
-        const res = await fetch('http://localhost:8000/api/unit-scatter-data');
+        const res = await fetch(`http://localhost:8000/api/data-radar?unit=${encodeURIComponent(unit)}`);
         const data = await res.json();
-        setScatterData(data.units || []);
+        setter(data);
       } catch (error) {
-        console.error('Gagal memuat scatter data:', error);
-        setScatterData([]);
+        console.error(`Gagal memuat radar untuk ${unit}:`, error);
+        setter(null);
       }
     };
-    fetchScatter();
-  }, []);
 
-  // === Fetch Radar Data ===
-  // === Fetch Radar Data ===
-useEffect(() => {
-  const fetchRadar = async (unit, setter) => {
-    if (!unit) return;
-    try {
-      // GANTI INI:
-      const res = await fetch(`http://localhost:8000/api/data-radar?unit=${encodeURIComponent(unit)}`);
-      const data = await res.json();
-      setter(data);
-    } catch (error) {
-      console.error(`Gagal memuat radar untuk ${unit}:`, error);
-      setter(null);
-    }
-  };
-
-  fetchRadar(radarUnit1, setRadarData1);
-  fetchRadar(radarUnit2, setRadarData2);
-}, [radarUnit1, radarUnit2]);
+    fetchRadar(radarUnit1, setRadarData1);
+    fetchRadar(radarUnit2, setRadarData2);
+  }, [radarUnit1, radarUnit2]);
 
   // === Pilih 2 unit acak saat pertama kali ===
   useEffect(() => {
@@ -161,7 +171,7 @@ useEffect(() => {
     }
   }, [availableUnitsForRadar]);
 
-  // === Filter & Pagination ===
+  // === Filter & Pagination (untuk Tabel) ===
   const filteredUnits = useMemo(() => {
     if (!searchQuery) return allUnits;
     const q = searchQuery.toLowerCase();
@@ -183,26 +193,14 @@ useEffect(() => {
   // === Modal Handlers ===
   const openDetailModal = async (unitName) => {
     setSelectedUnit(unitName);
-    setModalYear(2025);
+    // Gunakan tahun terbaru dari selectedYears untuk detail
+    const latestYear = Math.max(...selectedYears);
     setIsModalOpen(true);
     setSelectedItemForChart(null);
     try {
-      const res = await fetch(`http://localhost:8000/api/unit-item-monthly?unit=${encodeURIComponent(unitName)}&year=2025`);
+      const res = await fetch(`http://localhost:8000/api/unit-item-monthly?unit=${encodeURIComponent(unitName)}&year=${latestYear}`);
       const data = await res.json();
       setUnitItems(data.items || []);
-    } catch (error) {
-      console.error('Gagal memuat detail barang:', error);
-      setUnitItems([]);
-    }
-  };
-
-  const handleModalYearChange = async (year) => {
-    setModalYear(year);
-    try {
-      const res = await fetch(`http://localhost:8000/api/unit-item-monthly?unit=${encodeURIComponent(selectedUnit)}&year=${year}`);
-      const data = await res.json();
-      setUnitItems(data.items || []);
-      setSelectedItemForChart(null);
     } catch (error) {
       console.error('Gagal memuat detail barang:', error);
       setUnitItems([]);
@@ -282,13 +280,13 @@ useEffect(() => {
   };
 
   const barDataSpending = {
-  labels: topSpendingUnits.map(item => item.UnitPemohon),
-  datasets: [{
-    label: 'Total Pengeluaran (Rp)',
-    data: topSpendingUnits.map(item => item.TotalPengeluaran), // ✅ Tambahkan "data:"
-    backgroundColor: topSpendingUnits.map((_, i) => getBlueGradientColor(i, topSpendingUnits.length)),
-  }],
-};
+    labels: topSpendingUnits.map(item => item.UnitPemohon),
+    datasets: [{
+      label: 'Total Pengeluaran (Rp)',
+      data: topSpendingUnits.map(item => item.TotalPengeluaran),
+      backgroundColor: topSpendingUnits.map((_, i) => getBlueGradientColor(i, topSpendingUnits.length)),
+    }],
+  };
 
   const scatterChartData = {
     datasets: [{
@@ -322,39 +320,50 @@ useEffect(() => {
 
   const monthlyLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Oct', 'Nov', 'Des'];
   const lineData = selectedItemForChart
-  ? {
-      labels: monthlyLabels,
-      datasets: [{
-        label: `Permintaan Bulanan: ${selectedItemForChart.NamaBarang}`,
-        data: selectedItemForChart.Bulanan, // ✅ Tambahkan "data:"
-        borderColor: '#3b82f6',
-        tension: 0,
-      }]
-    }
-  : null;
+    ? {
+        labels: monthlyLabels,
+        datasets: [{
+          label: `Permintaan Bulanan: ${selectedItemForChart.NamaBarang}`,
+          data: selectedItemForChart.Bulanan,
+          borderColor: '#3b82f6',
+          tension: 0,
+        }]
+      }
+    : null;
 
   return (
     <div className="page-content">
       <div className="analytics-header">
         <h1 className="page-title"><i className="fas fa-users"></i> Analisis Unit Pemohon & Detail Barang</h1>
         <div className="filter-section">
-          <span className="filter-label">Tahun (Top Unit):</span>
-          <select
-            className="year-filter-select"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-          >
-            <option value={2025}>2025</option>
-            <option value={2024}>2024</option>
-            <option value={2023}>2023</option>
-          </select>
+          <span className="filter-label">Tahun (Grafik):</span>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <input
+                type="checkbox"
+                checked={selectedYears.length === ALL_YEARS.length}
+                onChange={toggleAllYears}
+              />
+              <span>Semua Tahun</span>
+            </label>
+            {ALL_YEARS.map((year) => (
+              <label key={year} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedYears.includes(year)}
+                  onChange={() => toggleYear(year)}
+                />
+                <span>{year}</span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Layout 2 kolom */}
       <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '24px' }}>
         <div className="chart-card">
-          <h3 className="chart-title">Top 5 Unit Pemohon ({selectedYear})</h3>
+          <h3 className="chart-title">Top 5 Unit Pemohon ({selectedYears.length === ALL_YEARS.length ? 'Semua Tahun' : selectedYears.join(', ')})</h3>
           <div className="chart-container" style={{ height: '280px' }}>
             {topRequesters.length > 0 ? (
               <Bar data={barDataRequesters} options={barOptions} />
@@ -366,9 +375,8 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* ✅ Top 10 Pengeluaran Uang — Ganti Pie Chart */}
         <div className="chart-card">
-          <h3 className="chart-title">Top 10 Unit dengan Pengeluaran Terbesar ({selectedYear})</h3>
+          <h3 className="chart-title">Top 10 Unit dengan Pengeluaran Terbesar ({selectedYears.length === ALL_YEARS.length ? 'Semua Tahun' : selectedYears.join(', ')})</h3>
           <div className="chart-container" style={{ height: '280px' }}>
             {topSpendingUnits.length > 0 ? (
               <Bar data={barDataSpending} options={barOptions} />
@@ -381,9 +389,9 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Scatter Plot */}
+      {/* Scatter Plot - Sekarang tergantung pada selectedYears */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
-        <h3 className="chart-title">Scatter Plot: Total Pengeluaran vs Total Permintaan</h3>
+        <h3 className="chart-title">Scatter Plot: Total Pengeluaran vs Total Permintaan ({selectedYears.length === ALL_YEARS.length ? 'Semua Tahun' : selectedYears.join(', ')})</h3>
         <p style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
           Titik berwarna: <span style={{ color: '#10b981' }}>● Hemat</span>, <span style={{ color: '#f59e0b' }}>● Sedang</span>, <span style={{ color: '#ef4444' }}>● Boros</span>
         </p>
@@ -392,97 +400,98 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Radar Chart */}
-<div className="chart-card" style={{ marginTop: '24px' }}>
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-    <h3 className="chart-title">Perbandingan Profil Unit (Radar Chart)</h3>
-    <div style={{ display: 'flex', gap: '12px' }}>
-      <select
-        value={radarUnit1}
-        onChange={(e) => setRadarUnit1(e.target.value)}
-        style={{ padding: '6px', minWidth: '180px' }}
-      >
-        <option value="">Pilih Unit 1</option>
-        {availableUnitsForRadar.map(unit => (
-          <option key={`u1-${unit}`} value={unit}>{unit}</option>
-        ))}
-      </select>
-      <select
-        value={radarUnit2}
-        onChange={(e) => setRadarUnit2(e.target.value)}
-        style={{ padding: '6px', minWidth: '180px' }}
-      >
-        <option value="">Pilih Unit 2</option>
-        {availableUnitsForRadar.map(unit => (
-          <option key={`u2-${unit}`} value={unit}>{unit}</option>
-        ))}
-      </select>
-    </div>
-  </div>
-  <div className="chart-container" style={{ height: '400px' }}>
-    {(radarUnit1 || radarUnit2) ? (
-      <Radar
-        data={{
-          labels: [
-            'Total Anggaran Digunakan',
-            'Volume Permintaan',
-            'Rata-rata Biaya per Item',
-            'Efisiensi Pengadaan',
-            'Diversitas Permintaan',
-            'Segmen Keuangan'
-          ],
-          datasets: [
-            ...(radarData1 ? [{
-              label: `${radarUnit1} (${radarData1.cluster || '–'})`,
-              data: [
-                radarData1.scores["Total Anggaran Digunakan"],
-                radarData1.scores["Volume Permintaan"],
-                radarData1.scores["Rata-rata Biaya per Item"],
-                radarData1.scores["Efisiensi Pengadaan"],
-                radarData1.scores["Diversitas Permintaan"],
-                radarData1.scores["Segmen Keuangan"]
-              ],
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.2)', // 💡 ARSIR
-              fill: true, // 💡 EFECT FILL
-              pointBackgroundColor: '#3b82f6',
-              pointBorderColor: '#fff',
-              pointHoverBackgroundColor: '#fff',
-              pointHoverBorderColor: '#3b82f6',
-            }] : []),
-            ...(radarData2 ? [{
-              label: `${radarUnit2} (${radarData2.cluster || '–'})`,
-              data: [
-                radarData2.scores["Total Anggaran Digunakan"],
-                radarData2.scores["Volume Permintaan"],
-                radarData2.scores["Rata-rata Biaya per Item"],
-                radarData2.scores["Efisiensi Pengadaan"],
-                radarData2.scores["Diversitas Permintaan"],
-                radarData2.scores["Segmen Keuangan"]
-              ],
-              borderColor: '#ef4444',
-              backgroundColor: 'rgba(239, 68, 68, 0.2)', // 💡 ARSIR
-              fill: true, // 💡 EFECT FILL
-              pointBackgroundColor: '#ef4444',
-              pointBorderColor: '#fff',
-              pointHoverBackgroundColor: '#fff',
-              pointHoverBorderColor: '#ef4444',
-            }] : []),
-          ],
-        }}
-        options={radarOptions}
-      />
-    ) : (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        Pilih minimal satu unit
-      </div>
-    )}
-  </div>
-</div>
-      {/* Tabel Unit */}
+      {/* Radar Chart - Tidak terpengaruh oleh filter tahun */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 className="chart-title">Daftar Unit Pemohon</h3>
+          <h3 className="chart-title">Perbandingan Profil Unit (Radar Chart)</h3>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <select
+              value={radarUnit1}
+              onChange={(e) => setRadarUnit1(e.target.value)}
+              style={{ padding: '6px', minWidth: '180px' }}
+            >
+              <option value="">Pilih Unit 1</option>
+              {availableUnitsForRadar.map(unit => (
+                <option key={`u1-${unit}`} value={unit}>{unit}</option>
+              ))}
+            </select>
+            <select
+              value={radarUnit2}
+              onChange={(e) => setRadarUnit2(e.target.value)}
+              style={{ padding: '6px', minWidth: '180px' }}
+            >
+              <option value="">Pilih Unit 2</option>
+              {availableUnitsForRadar.map(unit => (
+                <option key={`u2-${unit}`} value={unit}>{unit}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="chart-container" style={{ height: '400px' }}>
+          {(radarUnit1 || radarUnit2) ? (
+            <Radar
+              data={{
+                labels: [
+                  'Total Anggaran Digunakan',
+                  'Volume Permintaan',
+                  'Rata-rata Biaya per Item',
+                  'Efisiensi Pengadaan',
+                  'Diversitas Permintaan',
+                  'Segmen Keuangan'
+                ],
+                datasets: [
+                  ...(radarData1 ? [{
+                    label: `${radarUnit1} (${radarData1.cluster || '–'})`,
+                    data: [
+                      radarData1.scores["Total Anggaran Digunakan"],
+                      radarData1.scores["Volume Permintaan"],
+                      radarData1.scores["Rata-rata Biaya per Item"],
+                      radarData1.scores["Efisiensi Pengadaan"],
+                      radarData1.scores["Diversitas Permintaan"],
+                      radarData1.scores["Segmen Keuangan"]
+                    ],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    fill: true,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#3b82f6',
+                  }] : []),
+                  ...(radarData2 ? [{
+                    label: `${radarUnit2} (${radarData2.cluster || '–'})`,
+                    data: [
+                      radarData2.scores["Total Anggaran Digunakan"],
+                      radarData2.scores["Volume Permintaan"],
+                      radarData2.scores["Rata-rata Biaya per Item"],
+                      radarData2.scores["Efisiensi Pengadaan"],
+                      radarData2.scores["Diversitas Permintaan"],
+                      radarData2.scores["Segmen Keuangan"]
+                    ],
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                    fill: true,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#ef4444',
+                  }] : []),
+                ],
+              }}
+              options={radarOptions}
+            />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              Pilih minimal satu unit
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tabel Unit - Tidak terpengaruh oleh filter tahun, diurutkan ascending */}
+      <div className="chart-card" style={{ marginTop: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 className="chart-title">Daftar Unit Pemohon (Semua Tahun - Diurutkan A-Z)</h3>
           <input
             type="text"
             placeholder="Cari unit pemohon..."
@@ -619,29 +628,17 @@ useEffect(() => {
               }}
             >
               <h3>Detail Barang: {selectedUnit}</h3>
-              <div>
-                <span style={{ marginRight: '8px' }}>Tahun:</span>
-                <select
-                  value={modalYear}
-                  onChange={(e) => handleModalYearChange(Number(e.target.value))}
-                  style={{ padding: '4px', marginRight: '12px' }}
-                >
-                  <option value={2025}>2025</option>
-                  <option value={2024}>2024</option>
-                  <option value={2023}>2023</option>
-                </select>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: '20px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  &times;
-                </button>
-              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                }}
+              >
+                &times;
+              </button>
             </div>
 
             <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
@@ -692,7 +689,7 @@ useEffect(() => {
                   </table>
                 </>
               ) : (
-                <p>Tidak ada data permintaan barang untuk unit ini di tahun {modalYear}.</p>
+                <p>Tidak ada data permintaan barang untuk unit ini di tahun terbaru dari filter.</p>
               )}
             </div>
           </div>

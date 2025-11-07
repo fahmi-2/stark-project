@@ -899,18 +899,32 @@ async def get_unit_item_monthly(unit: str, year: int):
         print(f"[ERROR] Unit Item Monthly ({unit}, {year}): {e}")
         return {"items": []}
 # === Endpoint: Data untuk Scatter Plot (semua unit) ===
+# === Endpoint: Data untuk Scatter Plot (semua unit) DENGAN FILTER TAHUN ===
 @app.get("/api/unit-scatter-data")
-async def get_unit_scatter_data():
+async def get_unit_scatter_data(years: str = "all"):
     try:
-                # Hitung ambang batas global sekali
-        all_units_agg = df.groupby("UnitPemohon").agg(
+        # Parse tahun dari parameter
+        selected_years = parse_years_param(years)
+        if not selected_years:
+            return {"units": []}
+
+        # Filter data berdasarkan tahun yang dipilih
+        data = df[df["Tahun"].isin(selected_years)].copy()
+        if data.empty:
+            return {"units": []}
+
+        # Hitung ambang batas global berdasarkan data yang difilter
+        all_units_agg = data.groupby("UnitPemohon").agg(
             TotalPengeluaran=("TotalHarga", "sum")
         )
+        if all_units_agg.empty:
+            return {"units": []}
+
         e33 = all_units_agg["TotalPengeluaran"].quantile(0.33)
         e66 = all_units_agg["TotalPengeluaran"].quantile(0.66)
 
-        # Agregasi utama
-        agg = df.groupby("UnitPemohon").agg(
+        # Agregasi utama berdasarkan data yang difilter
+        agg = data.groupby("UnitPemohon").agg(
             TotalPermintaan=("Jumlah", "sum"),
             TotalPengeluaran=("TotalHarga", "sum")
         ).reset_index()
@@ -918,23 +932,22 @@ async def get_unit_scatter_data():
         result = []
         for _, row in agg.iterrows():
             total_pengeluaran = row["TotalPengeluaran"]
-            # Klasifikasi segmen berdasarkan ambang batas global
+            # Klasifikasi segmen berdasarkan ambang batas dari data yang difilter
             if total_pengeluaran >= e66:
                 segmen = "Boros"
             elif total_pengeluaran >= e33:
                 segmen = "Sedang"
             else:
                 segmen = "Hemat"
-
             result.append({
                 "UnitPemohon": row["UnitPemohon"],
                 "TotalPermintaan": int(row["TotalPermintaan"]),
                 "TotalPengeluaran": float(row["TotalPengeluaran"]),
-                "Segmen": segmen  # ✅ Tambahkan ini!
+                "Segmen": segmen
             })
         return {"units": result}
     except Exception as e:
-        print(f"[ERROR] Scatter Data: {e}")
+        print(f"[ERROR] Scatter Data ({years}): {e}")
         import traceback
         traceback.print_exc()
         return {"units": []}
