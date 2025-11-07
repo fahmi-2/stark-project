@@ -3,7 +3,7 @@ import React from 'react';
 function DashboardHeader() {
   return (
     <div className="dashboard-header">
-      <h1>Dashboard Permintaan & Pengeluaran</h1>
+      <h1>Dashboard Analitik Manajemen ATK</h1>
       <div className="filter-section">
         <span className="filter-label">Tahun:</span>
         <select className="year-filter-select" data-page-reload="home">

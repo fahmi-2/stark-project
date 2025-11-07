@@ -1,5 +1,5 @@
 // src/pages/HomePage.js
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Line, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
   Filler,
+  plugins,
 } from 'chart.js';
 
 ChartJS.register(
@@ -26,66 +27,216 @@ ChartJS.register(
 
 const HomePage = () => {
   const [dashboardData, setDashboardData] = useState(null);
+  const [monthlyExpenditureByYear, setMonthlyExpenditureByYear] = useState({});
+  const [monthlyDemandByYear, setMonthlyDemandByYear] = useState({});
   const [loading, setLoading] = useState(true);
+  const [categoryDemandData, setCategoryDemandData] = useState(null);
   const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedYears, setSelectedYears] = useState([2023, 2024, 2025]); // default semua tahun
 
-  // Fetch data berdasarkan tahun
-  useEffect(() => {
-  const fetchData = async () => {
+  const ALL_YEARS = [2023, 2024, 2025];
+
+  // Helper: format Rupiah
+  const formatRupiah = (value) => {
+    if (value >= 1_000_000_000) return `Rp ${(value / 1e9).toFixed(1)}M`;
+    if (value >= 1_000_000) return `Rp ${(value / 1e6).toFixed(1)}jt`;
+    return `Rp ${value.toLocaleString('id-ID')}`;
+  };
+  const formatRupiahLengkap = (value) => {
+  // Pastikan value adalah angka
+  if (typeof value === 'string') {
+    // Jika sudah berupa string (misal "Rp1.9M"), kita ambil angkanya dari API asli
+    // Tapi sebaiknya hindari ini — lebih baik format di backend atau gunakan value numerik
+    return value;
+  }
+  // Format sebagai Rupiah lengkap dengan pemisah ribuan
+  return `Rp${Math.round(value).toLocaleString('id-ID')}`;
+};
+
+  // Toggle tahun
+  const toggleYear = (year) => {
+    if (selectedYears.includes(year)) {
+      const newSelection = selectedYears.filter(y => y !== year);
+      setSelectedYears(newSelection.length ? newSelection : [2025]);
+    } else {
+      setSelectedYears([...selectedYears, year]);
+    }
+  };
+
+  // Toggle "Semua Tahun"
+  const toggleAllYears = () => {
+    if (selectedYears.length === ALL_YEARS.length) {
+      setSelectedYears([2025]);
+    } else {
+      setSelectedYears([...ALL_YEARS]);
+    }
+  };
+
+  // Fetch data utama
+  const fetchMainData = async (years) => {
+    const yearsParam = years.includes(2023) && years.includes(2024) && years.includes(2025)
+      ? "all"
+      : years.join(",");
+
     try {
-      setLoading(true);
-      setError(null);
-
       const [metricsRes, monthlyRes, categoryRes, requestersRes] = await Promise.all([
-  fetch(`http://localhost:8000/api/dashboard-metrics/${selectedYear}`),
-  fetch(`http://localhost:8000/api/monthly-demand/${selectedYear}`),
-  fetch(`http://localhost:8000/api/category-and-top-items/${selectedYear}`),
-  fetch(`http://localhost:8000/api/top-requesters/${selectedYear}`) // ← Tambahkan ini
-]);
+        fetch(`http://localhost:8000/api/dashboard-metrics?years=${yearsParam}`),
+        fetch(`http://localhost:8000/api/monthly-demand?years=${yearsParam}`),
+        fetch(`http://localhost:8000/api/category-and-top-items?years=${yearsParam}`),
+        fetch(`http://localhost:8000/api/top-requesters?years=${yearsParam}`)
+      ]);
 
       if (!metricsRes.ok || !monthlyRes.ok || !categoryRes.ok || !requestersRes.ok) {
-  throw new Error('Gagal mengambil data dari server');
-}
+        throw new Error('Gagal mengambil data utama');
+      }
 
       const metrics = await metricsRes.json();
       const monthly = await monthlyRes.json();
       const category = await categoryRes.json();
       const requesters = await requestersRes.json();
-      setDashboardData({
-  ...metrics,
-  monthlyDemand: monthly.monthlyDemand,
-  categoryValueLabels: category.categoryValueLabels,
-  categoryValueData: category.categoryValueData,
-  topItems: category.topItems,
-  topRequesters: requesters.topRequesters // ← Tambahkan ini
-});
+
+      return {
+        ...metrics,
+        monthlyDemand: monthly.monthlyDemand || Array(12).fill(0),
+        categoryValueLabels: category.categoryValueLabels || [],
+        categoryValueData: category.categoryValueData || [],
+        topItems: category.topItems || [],
+        topRequesters: requesters.topRequesters || [],
+      };
     } catch (err) {
-      console.error('Error fetching ', err);
+      console.error('Error fetching main data:', err);
+      throw err;
+    }
+  };
+  // Tambahkan fungsi fetch baru
+const fetchCategoryDemandData = async (years) => {
+  const yearsParam = years.includes(2023) && years.includes(2024) && years.includes(2025)
+    ? "all"
+    : years.join(",");
+
+  try {
+    const res = await fetch(`http://localhost:8000/api/category-demand-proportion?years=${yearsParam}`);
+    if (!res.ok) throw new Error('Gagal mengambil data proporsi permintaan');
+    const json = await res.json();
+    return {
+      labels: json.labels || [],
+      data: json.data || [],
+    };
+  } catch (err) {
+    console.error('Error fetching category demand proportion:', err);
+    return { labels: [], data: [] };
+  }
+};
+const fetchMonthlyDemandByYear = async (year) => {
+  try {
+    const res = await fetch(`http://localhost:8000/api/monthly-demand?years=${year}`);
+    if (res.ok) {
+      const json = await res.json();
+      return json.monthlyDemand || Array(12).fill(0);
+    }
+  } catch (e) {
+    console.warn(`Gagal ambil data permintaan ${year}:`, e);
+  }
+  return Array(12).fill(0);
+};
+  // Fetch data pengeluaran PER TAHUN
+  const fetchExpenditureData = async (years) => {
+    const data = {};
+    await Promise.all(
+      years.map(async (year) => {
+        try {
+          const res = await fetch(`http://localhost:8000/api/monthly-expenditure?years=${year}`);
+          if (res.ok) {
+            const json = await res.json();
+            data[year] = json.monthlyExpenditure || Array(12).fill(0);
+          } else {
+            data[year] = Array(12).fill(0);
+          }
+        } catch (e) {
+          console.warn(`Gagal ambil data pengeluaran ${year}:`, e);
+          data[year] = Array(12).fill(0);
+        }
+      })
+    );
+    return data;
+  };
+
+  // Efek utama — HANYA DEPEND ON selectedYears
+  useEffect(() => {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [mainData, expenditureData, demand2023, demand2024, demand2025, categoryDemand] = await Promise.all([
+        fetchMainData(selectedYears),
+        fetchExpenditureData(selectedYears),
+        fetchMonthlyDemandByYear(2023),
+        fetchMonthlyDemandByYear(2024),
+        fetchMonthlyDemandByYear(2025),
+        fetchCategoryDemandData(selectedYears), // ⬅️ Tambahkan ini
+      ]);
+
+      setDashboardData(mainData);
+      setMonthlyExpenditureByYear(expenditureData);
+      setMonthlyDemandByYear({
+        2023: demand2023,
+        2024: demand2024,
+        2025: demand2025
+      });
+      setCategoryDemandData(categoryDemand); // ⬅️ Simpan data baru
+    } catch (err) {
+      console.error('Error loading dashboard:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  fetchData();
-}, [selectedYear]); // ← Hanya trigger ulang saat selectedYear berubah
+  loadData();
+}, [selectedYears]);
 
+  // === Chart Configs ===
   const lineOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context) => `barang: ${context.raw.toLocaleString()}`,
-        },
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: true },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => `${ctx.dataset.label}: ${formatRupiah(ctx.raw)}`,
       },
     },
-    scales: {
-      y: { beginAtZero: true },
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      ticks: {
+        callback: (value) => `Rp. ${value.toLocaleString('id-ID')}`,
+      },
     },
-  };
+  },
+};
+const lineOptionsUnits = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: true },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.toLocaleString()} unit`,
+      },
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      ticks: {
+        callback: (value) => value.toLocaleString(), // ✅ Hanya angka, tanpa Rp.
+      },
+    },
+  },
+};
 
   const doughnutOptions = {
     responsive: true,
@@ -93,25 +244,93 @@ const HomePage = () => {
       legend: { position: 'bottom' },
       tooltip: {
         callbacks: {
-          label: (context) => `${context.label}: Rp ${(context.parsed / 1e6).toFixed(1)}jt`,
+          label: (ctx) => `${ctx.label}: ${formatRupiah(ctx.raw)}`,
         },
       },
     },
   };
+  const doughnutOptionsDemand = {
+  responsive: true,
+  plugins: {
+    legend: { position: 'bottom' },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => `${ctx.label}: ${ctx.raw.toLocaleString()} unit`,
+      },
+    },
+  },
+};
 
-  const lineData = dashboardData ? {
+  // Data: Permintaan (unit) per bulan
+  const lineDataUnits = {
+  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Oct', 'Nov', 'Des'],
+  datasets: [
+    ...(selectedYears.includes(2023) ? [{
+      label: 'Permintaan 2023',
+      data: monthlyDemandByYear[2023] || Array(12).fill(0), // ✅ Tambahkan "data:"
+      borderColor: '#ef4444',
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      tension: 0,
+      fill: false,
+    }] : []),
+    ...(selectedYears.includes(2024) ? [{
+      label: 'Permintaan 2024',
+      data: monthlyDemandByYear[2024] || Array(12).fill(0), // ✅ Tambahkan "data:"
+      borderColor: '#3b82f6',
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      tension: 0,
+      fill: false,
+    }] : []),
+    ...(selectedYears.includes(2025) ? [{
+      label: 'Permintaan 2025',
+      data: monthlyDemandByYear[2025] || Array(12).fill(0), // ✅ Tambahkan "data:"
+      borderColor: '#10b981',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      tension: 0,
+      fill: false,
+    }] : []),
+  ],
+};
+const doughnutDataDemand = categoryDemandData ? {
+  labels: categoryDemandData.labels,
+  datasets: [
+    {
+      data: categoryDemandData.data,
+      backgroundColor: ['#1e40af', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9'],
+    },
+  ],
+} : null;
+
+  // ✅ Data: Pengeluaran Uang — 3 garis berbeda
+  const lineDataExpenditure = {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Oct', 'Nov', 'Des'],
     datasets: [
-      {
-        label: 'Total Pengeluaran Barang Bulanan (Unit)',
-        data: dashboardData.monthlyDemand,
-        borderColor: '#3b82f6',
+      ...(selectedYears.includes(2023) ? [{
+        label: 'Pengeluaran 2023',
+        data: monthlyExpenditureByYear[2023] || Array(12).fill(0),
+        borderColor: '#ef4444', // merah
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        tension: 0,
+        fill: false,
+      }] : []),
+      ...(selectedYears.includes(2024) ? [{
+        label: 'Pengeluaran 2024',
+        data: monthlyExpenditureByYear[2024] || Array(12).fill(0),
+        borderColor: '#3b82f6', // biru
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
-        fill: true,
-      },
+        tension: 0,
+        fill: false,
+      }] : []),
+      ...(selectedYears.includes(2025) ? [{
+        label: 'Pengeluaran 2025',
+        data: monthlyExpenditureByYear[2025] || Array(12).fill(0),
+        borderColor: '#10b981', // hijau
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        tension: 0,
+        fill: false,
+      }] : []),
     ],
-  } : null;
+  };
 
   const doughnutData = dashboardData ? {
     labels: dashboardData.categoryValueLabels,
@@ -141,22 +360,35 @@ const HomePage = () => {
         <h1>Dashboard Permintaan & Pengeluaran</h1>
         <div className="filter-section">
           <span className="filter-label">Tahun:</span>
-          <select
-            className="year-filter-select"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-          >
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-          </select>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <input
+                type="checkbox"
+                checked={selectedYears.length === ALL_YEARS.length}
+                onChange={toggleAllYears}
+              />
+              <span>Semua Tahun</span>
+            </label>
+            {ALL_YEARS.map((year) => (
+              <label key={year} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedYears.includes(year)}
+                  onChange={() => toggleYear(year)}
+                />
+                <span>{year}</span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
+
+      
 
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-header">
-            <span className="stat-title">Total Permintaan (Unit Keluar)</span>
+            <span className="stat-title">Total Permintaan</span>
             <div className="stat-icon" style={{ background: '#dbeafe', color: '#1e40af' }}>
               <i className="fas fa-download"></i>
             </div>
@@ -174,7 +406,9 @@ const HomePage = () => {
               <i className="fas fa-hand-holding-usd"></i>
             </div>
           </div>
-          <div className="stat-value">{dashboardData.metrics.outflowValue.value}</div>
+          <div className="stat-value">
+  {formatRupiahLengkap(dashboardData.metrics.outflowValue.value)}
+</div>
           <div className={`stat-change ${!dashboardData.metrics.outflowValue.isPositive ? 'negative' : ''}`}>
             {dashboardData.metrics.outflowValue.changeText}
           </div>
@@ -182,7 +416,7 @@ const HomePage = () => {
 
         <div className="stat-card">
           <div className="stat-header">
-            <span className="stat-title">Total Unit Pemohon (Unik)</span>
+            <span className="stat-title">Total Unit Pemohon</span>
             <div className="stat-icon" style={{ background: '#fed7aa', color: '#92400e' }}>
               <i className="fas fa-user-friends"></i>
             </div>
@@ -193,7 +427,7 @@ const HomePage = () => {
 
         <div className="stat-card">
           <div className="stat-header">
-            <span className="stat-title">Total Barang Unik (SKU)</span>
+            <span className="stat-title">Total Barang</span>
             <div className="stat-icon" style={{ background: '#fecaca', color: '#991b1b' }}>
               <i className="fas fa-rocket"></i>
             </div>
@@ -204,24 +438,59 @@ const HomePage = () => {
       </div>
 
       <div className="charts-grid">
-        <div className="chart-card">
-          <h3 className="chart-title">Tren Pengeluaran Barang Bulanan (barang))</h3>
-          <div className="chart-container" style={{ height: '300px' }}>
-            {lineData && <Line data={lineData} options={lineOptions} />}
-          </div>
-        </div>
-        <div className="chart-card">
-          <h3 className="chart-title">Proporsi Nilai Pengeluaran Berdasarkan Kategori (Top 6)</h3>
-          <div className="chart-container" style={{ height: '300px', position: 'relative'  }}>
-            {doughnutData && <Doughnut data={doughnutData} options={doughnutOptions} />}
-          </div>
+
+  {/* === GRAFIK 3 GARIS: Pengeluaran Uang per Tahun === */}
+      <div className="chart-card" style={{ marginTop: '24px' }}>
+        <h3 className="chart-title">
+          Tren Pengeluaran Uang oleh Unit Pemohon per Bulan
+          {selectedYears.length > 1 ? ` (${selectedYears.join(', ')})` : ` (${selectedYears[0]})`}
+        </h3>
+        <div className="chart-container" style={{ height: '350px' }}>
+          <Line data={lineDataExpenditure} options={lineOptions} />
         </div>
       </div>
+      
+  <div className="chart-card" style={{ marginTop: '24px' }}>
+  <h3 className="chart-title">Proporsi Permintaan & Pengeluaran Berdasarkan Kategori Barang</h3>
+  <div style={{ display: 'flex', gap: '20px', justifyContent: 'space-between', marginTop: '16px' }}>
+    
+    {/* Donat 1: Proporsi Nilai Pengeluaran */}
+    <div style={{ flex: 1, textAlign: 'center' }}>
+      <h4 style={{ fontSize: '13px', color: '#475569' }}>Nilai Pengeluaran (Rp)</h4>
+      <div className="chart-container" style={{ height: '300px' }}>
+        {doughnutData && <Doughnut data={doughnutData} options={doughnutOptions} />}
+      </div>
+    </div>
 
-      <div className="table-card">
+    {/* Donat 2: Proporsi Permintaan (Unit) */}
+    <div style={{ flex: 1, textAlign: 'center' }}>
+      <h4 style={{ fontSize: '13px', color: '#475569' }}>Jumlah Permintaan (Unit)</h4>
+      <div className="chart-container" style={{ height: '300px' }}>
+        {doughnutDataDemand && <Doughnut data={doughnutDataDemand} options={doughnutOptionsDemand} />}
+      </div>
+    </div>
+
+  </div> {/* <-- Tutup div flex container di sini */}
 </div>
+
+      
+    </div>
+
+      <div className="charts-grid">
+        <div className="chart-card">
+          <h3 className="chart-title">Tren Pengeluaran Barang Bulanan (Unit)</h3>
+          <div className="chart-container" style={{ height: '300px' }}>
+            {lineDataUnits && <Line data={lineDataUnits} options={lineOptionsUnits} />}
+          </div>
+        </div>
+        </div>
+
+
+  
+
     </div>
   );
-};
+}
+
 
 export default HomePage;

@@ -29,36 +29,47 @@ const ItemAnalysisPage = () => {
   };
 
   // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [valueRes, unitRes, itemsRes] = await Promise.all([
-          fetch(`http://localhost:8000/api/category-value/${selectedYear}`),
-          fetch(`http://localhost:8000/api/category-unit/${selectedYear}`),
-          fetch(`http://localhost:8000/api/all-items/${selectedYear}`)
-        ]);
+  // Fetch data
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [valueRes, unitRes, itemsRes] = await Promise.all([
+        fetch(`http://localhost:8000/api/category-value/${selectedYear}`),
+        fetch(`http://localhost:8000/api/category-unit/${selectedYear}`),
+        fetch(`http://localhost:8000/api/all-items/${selectedYear}`)
+      ]);
 
-        if (!valueRes.ok || !unitRes.ok || !itemsRes.ok) {
-          throw new Error('Gagal mengambil data');
-        }
-
-        const valueData = await valueRes.json();
-        const unitData = await unitRes.json();
-        const itemsData = await itemsRes.json();
-
-        setCategoryValueData(valueData);
-        setCategoryUnitData(unitData);
-        setAllItems(itemsData.items || []);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      } finally {
-        setLoading(false);
+      if (!valueRes.ok || !unitRes.ok || !itemsRes.ok) {
+        throw new Error('Gagal mengambil data');
       }
-    };
 
-    fetchData();
-  }, [selectedYear]);
+      const valueData = await valueRes.json();
+      const unitData = await unitRes.json();
+      const itemsData = await itemsRes.json();
+
+      // Pastikan data valid
+      setCategoryValueData({
+        labels: Array.isArray(valueData.labels) ? valueData.labels : [],
+        data: Array.isArray(valueData.data) ? valueData.data : []
+      });
+
+      setCategoryUnitData({
+        labels: Array.isArray(unitData.labels) ? unitData.labels : [],
+        data: Array.isArray(unitData.data) ? unitData.data : []
+      });
+
+      setAllItems(itemsData.items || []);
+
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, [selectedYear]);
 
   // Filter items berdasarkan pencarian
   const filteredItems = allItems.filter(item =>
@@ -157,7 +168,7 @@ const ItemAnalysisPage = () => {
 
       <div className="charts-grid">
         <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi (Top 5)</h3>
+          <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi</h3>
           <div className="chart-container" style={{ height: '300px' }}>
             {categoryValueData.labels?.length > 0 ? (
               <Bar data={barValueData} options={barValueOptions} />
@@ -167,7 +178,7 @@ const ItemAnalysisPage = () => {
           </div>
         </div>
         <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi (Top 5)</h3>
+          <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi</h3>
           <div className="chart-container" style={{ height: '300px' }}>
             {categoryUnitData.labels?.length > 0 ? (
               <Bar data={barUnitData} options={barUnitOptions} />
@@ -194,7 +205,7 @@ const ItemAnalysisPage = () => {
             <tr>
               <th>Kategori</th>
               <th>Nama Barang</th>
-              <th>Total Unit Diminta</th>
+              <th>Total Barang Diminta</th>
               <th>Aksi</th>
             </tr>
           </thead>
@@ -204,13 +215,13 @@ const ItemAnalysisPage = () => {
                 <tr key={index}>
                   <td>{item.Kategori}</td>
                   <td>{item.NamaBrg}</td>
-                  <td>{item.TotalPermintaan.toLocaleString()} unit</td>
+                  <td>{item.TotalPermintaan.toLocaleString()} barang</td>
                   <td>
                     <button
                       className="btn btn-primary"
                       onClick={() => handleShowDetail(item.NamaBrg)}
                     >
-                      Detail Unit
+                      Detail
                     </button>
                   </td>
                 </tr>
@@ -231,7 +242,7 @@ const ItemAnalysisPage = () => {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h4>Unit Pemohon: {detailModal.namaBarang}</h4>
+              <h4>Nama Barang: {detailModal.namaBarang}</h4>
               <button className="close-btn" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
@@ -247,7 +258,7 @@ const ItemAnalysisPage = () => {
                     {detailModal.units.map((unit, idx) => (
                       <tr key={idx}>
                         <td>{unit.UnitPemohon}</td>
-                        <td>{unit.Jumlah.toLocaleString()} unit</td>
+                        <td>{unit.Jumlah.toLocaleString()} barang</td>
                       </tr>
                     ))}
                   </tbody>

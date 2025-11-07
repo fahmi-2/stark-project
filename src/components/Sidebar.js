@@ -5,8 +5,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
   const menuItems = [
     { key: 'home', label: 'Home', icon: 'fa-home' },
     { key: 'unit-analysis', label: 'Analisis Unit Pemohon', icon: 'fa-users' },
-    { key: 'item-analysis', label: 'Analisis Barang (Kategori)', icon: 'fa-boxes' },
-    { key: 'time-analysis', label: 'Analisis Tren', icon: 'fa-chart-line' },
+    { key: 'item-analysis', label: 'Analisis Barang', icon: 'fa-boxes' },
     { key: 'chatbot', label: 'Chatbot Konsultan', icon: 'fa-comments' },
     { key: 'about', label: 'About', icon: 'fa-info-circle' },
   ];
