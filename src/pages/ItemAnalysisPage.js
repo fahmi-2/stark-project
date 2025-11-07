@@ -1,5 +1,5 @@
 // src/pages/ItemAnalysisPage.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -7,10 +7,12 @@ import {
   CategoryScale,
   LinearScale,
   Tooltip,
-  Legend,
+  Legend, // Kita tetap import karena ChartJS.register menggunakannya
 } from 'chart.js';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
+
+const ITEMS_PER_PAGE = 10;
 
 const ItemAnalysisPage = () => {
   const [selectedYear, setSelectedYear] = useState(2025);
@@ -20,62 +22,85 @@ const ItemAnalysisPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [detailModal, setDetailModal] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1); // Pagination
 
   // Format Rupiah
   const formatRupiah = (value) => {
     if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(1)}M`;
     if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)}jt`;
-    return `Rp ${value.toLocaleString('id-ID')}`;
+    return `Rp ${Math.round(value).toLocaleString('id-ID')}`;
   };
 
   // Fetch data
-  // Fetch data
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [valueRes, unitRes, itemsRes] = await Promise.all([
-        fetch(`http://localhost:8000/api/category-value/${selectedYear}`),
-        fetch(`http://localhost:8000/api/category-unit/${selectedYear}`),
-        fetch(`http://localhost:8000/api/all-items/${selectedYear}`)
-      ]);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [valueRes, unitRes, itemsRes] = await Promise.all([
+          fetch(`http://localhost:8000/api/category-value/${selectedYear}`),
+          fetch(`http://localhost:8000/api/category-unit/${selectedYear}`),
+          fetch(`http://localhost:8000/api/all-items/${selectedYear}`)
+        ]);
 
-      if (!valueRes.ok || !unitRes.ok || !itemsRes.ok) {
-        throw new Error('Gagal mengambil data');
+        if (!valueRes.ok || !unitRes.ok || !itemsRes.ok) {
+          throw new Error('Gagal mengambil data');
+        }
+
+        const valueData = await valueRes.json();
+        const unitData = await unitRes.json();
+        const itemsData = await itemsRes.json();
+
+        // Pastikan data valid
+        setCategoryValueData({
+          labels: Array.isArray(valueData.labels) ? valueData.labels : [],
+          data: Array.isArray(valueData.data) ? valueData.data : []
+        });
+
+        setCategoryUnitData({
+          labels: Array.isArray(unitData.labels) ? unitData.labels : [],
+          data: Array.isArray(unitData.data) ? unitData.data : []
+        });
+
+        // Tambahkan HargaSatuan jika ada (pastikan API mengembalikannya)
+        const itemsWithPrice = itemsData.items?.map(item => ({
+          ...item,
+          HargaSatuan: item.HargaSatuan || 0, // Jika tidak ada, default 0
+        })) || [];
+
+        setAllItems(itemsWithPrice);
+
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const valueData = await valueRes.json();
-      const unitData = await unitRes.json();
-      const itemsData = await itemsRes.json();
-
-      // Pastikan data valid
-      setCategoryValueData({
-        labels: Array.isArray(valueData.labels) ? valueData.labels : [],
-        data: Array.isArray(valueData.data) ? valueData.data : []
-      });
-
-      setCategoryUnitData({
-        labels: Array.isArray(unitData.labels) ? unitData.labels : [],
-        data: Array.isArray(unitData.data) ? unitData.data : []
-      });
-
-      setAllItems(itemsData.items || []);
-
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchData();
-}, [selectedYear]);
+    fetchData();
+  }, [selectedYear]);
 
   // Filter items berdasarkan pencarian
-  const filteredItems = allItems.filter(item =>
-    item.NamaBrg.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.Kategori.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredItems = useMemo(() => {
+    return allItems.filter(item =>
+      item.NamaBrg.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.Kategori.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [allItems, searchTerm]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const paginatedItems = useMemo(() => {
+    return filteredItems.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+  }, [filteredItems, currentPage]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
 
   // Ambil detail unit pemohon
   const handleShowDetail = async (namaBarang) => {
@@ -84,7 +109,22 @@ useEffect(() => {
         `http://localhost:8000/api/item-detail/${selectedYear}/${encodeURIComponent(namaBarang)}`
       );
       const data = await res.json();
-      setDetailModal({ namaBarang, units: data.units || [] });
+      
+      // Ambil harga satuan dari allItems (jika ada)
+      const item = allItems.find(i => i.NamaBrg === namaBarang);
+      const hargaSatuan = item?.HargaSatuan || 0;
+
+      // Tambahkan total pengeluaran per unit
+      const unitsWithCost = data.units?.map(unit => ({
+        ...unit,
+        TotalPengeluaran: unit.Jumlah * hargaSatuan
+      })) || [];
+
+      setDetailModal({ 
+        namaBarang, 
+        units: unitsWithCost,
+        hargaSatuan: hargaSatuan
+      });
     } catch (err) {
       console.error('Gagal ambil detail unit:', err);
       alert('Gagal memuat detail unit');
@@ -93,12 +133,12 @@ useEffect(() => {
 
   const closeModal = () => setDetailModal(null);
 
-  // Chart Options
+  // Chart Options - LEGEND DINONAKTIFKAN
   const barValueOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false },
+      legend: { display: false }, // ✅ LEGEND DIMATIKAN
       tooltip: {
         callbacks: {
           label: (ctx) => `${ctx.label}: ${formatRupiah(ctx.raw)}`,
@@ -106,7 +146,12 @@ useEffect(() => {
       },
     },
     scales: {
-      y: { beginAtZero: true },
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: (value) => `Rp ${value.toLocaleString('id-ID')}`,
+        },
+      },
     },
   };
 
@@ -115,7 +160,7 @@ useEffect(() => {
     maintainAspectRatio: false,
     indexAxis: 'y',
     plugins: {
-      legend: { display: false },
+      legend: { display: false }, // ✅ LEGEND DIMATIKAN
       tooltip: {
         callbacks: {
           label: (ctx) => `${ctx.label}: ${ctx.raw.toLocaleString()} unit`,
@@ -127,24 +172,36 @@ useEffect(() => {
     },
   };
 
-  // Chart Data
-  const barValueData = {
-    labels: categoryValueData.labels,
-    datasets: [{
-      label: 'Nilai Pengeluaran',
-      data: categoryValueData.data,
-      backgroundColor: '#3b82f6',
-    }],
-  };
+  // Chart Data - AMAN dari undefined
+  const barValueData = useMemo(() => {
+    return {
+      labels: categoryValueData.labels?.length > 0 ? categoryValueData.labels : ["Tidak Ada Data"],
+      datasets: [
+        {
+          label: 'Nilai Pengeluaran',
+          data: categoryValueData.data?.length > 0 ? categoryValueData.data : [0],
+          backgroundColor: '#3b82f6',
+        }
+      ]
+    };
+  }, [categoryValueData]);
 
-  const barUnitData = {
-    labels: categoryUnitData.labels,
-    datasets: [{
-      label: 'Total Unit Diminta',
-      data: categoryUnitData.data,
-      backgroundColor: '#10b981',
-    }],
-  };
+  const barUnitData = useMemo(() => {
+    return {
+      labels: categoryUnitData.labels?.length > 0 ? categoryUnitData.labels : ["Tidak Ada Data"],
+      datasets: [
+        {
+          label: 'Total Unit Diminta',
+          data: categoryUnitData.data?.length > 0 ? categoryUnitData.data : [0],
+          backgroundColor: '#10b981',
+        }
+      ]
+    };
+  }, [categoryUnitData]);
+
+  if (loading) {
+    return <div className="page-content">Loading...</div>;
+  }
 
   return (
     <div className="page-content">
@@ -159,9 +216,9 @@ useEffect(() => {
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
+            <option value={2025}>2025</option>
+            <option value={2024}>2024</option>
+            <option value={2023}>2023</option>
           </select>
         </div>
       </div>
@@ -205,16 +262,18 @@ useEffect(() => {
             <tr>
               <th>Kategori</th>
               <th>Nama Barang</th>
+              <th>Harga Satuan</th>
               <th>Total Barang Diminta</th>
               <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.length > 0 ? (
-              filteredItems.map((item, index) => (
+            {paginatedItems.length > 0 ? (
+              paginatedItems.map((item, index) => (
                 <tr key={index}>
                   <td>{item.Kategori}</td>
                   <td>{item.NamaBrg}</td>
+                  <td>{formatRupiah(item.HargaSatuan)}</td>
                   <td>{item.TotalPermintaan.toLocaleString()} barang</td>
                   <td>
                     <button
@@ -228,13 +287,50 @@ useEffect(() => {
               ))
             ) : (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center' }}>
+                <td colSpan="5" style={{ textAlign: 'center' }}>
                   Tidak ada data barang ditemukan
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="pagination-controls" style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: currentPage === 1 ? '#e5e7eb' : '#3b82f6',
+                color: currentPage === 1 ? '#9ca3af' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Previous
+            </button>
+            <span style={{ alignSelf: 'center' }}>
+              Halaman {currentPage} dari {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: currentPage === totalPages ? '#e5e7eb' : '#3b82f6',
+                color: currentPage === totalPages ? '#9ca3af' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal Detail Unit */}
@@ -246,12 +342,33 @@ useEffect(() => {
               <button className="close-btn" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
+              {/* Filter Tahun */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ marginRight: '8px' }}>Tahun:</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const year = Number(e.target.value);
+                    handleShowDetail(detailModal.namaBarang); // Re-fetch dengan tahun baru
+                  }}
+                  style={{ padding: '6px', marginRight: '12px' }}
+                >
+                  <option value={2025}>2025</option>
+                  <option value={2024}>2024</option>
+                  <option value={2023}>2023</option>
+                </select>
+              </div>
+
+              {/* Harga Satuan */}
+              <p><strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}</p>
+
               {detailModal.units.length > 0 ? (
                 <table className="detail-table">
                   <thead>
                     <tr>
                       <th>Unit Pemohon</th>
                       <th>Jumlah Permintaan</th>
+                      <th>Total Pengeluaran</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -259,6 +376,7 @@ useEffect(() => {
                       <tr key={idx}>
                         <td>{unit.UnitPemohon}</td>
                         <td>{unit.Jumlah.toLocaleString()} barang</td>
+                        <td>{formatRupiah(unit.TotalPengeluaran)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -353,6 +471,10 @@ useEffect(() => {
           justify-content: center;
           height: 100%;
           color: #666;
+        }
+        .pagination-controls button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

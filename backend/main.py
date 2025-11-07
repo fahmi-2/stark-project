@@ -539,74 +539,43 @@ async def get_top_requesters(years: str = "2025"):
 # =====================================================
 # ✅ Endpoint Baru: Kategori Berdasarkan Jumlah Unit (bukan nilai uang)
 # =====================================================
-@app.get("/api/category-units/{year}")
-async def get_category_units(year: int):
-    try:
-        data = df[df["Tahun"] == year].copy()
-        if data.empty:
-            return {"labels": [], "data": []}
-
-        # Agregasi Jumlah per Kategori, ambil top 6
-        category_agg = (
-            data.groupby("Kategori")["Jumlah"]
-            .sum()
-            .nlargest(6)
-            .reset_index()
-        )
-
-        return {
-            "labels": category_agg["Kategori"].tolist(),
-            "data": [int(x) for x in category_agg["Jumlah"].tolist()]
-        }
-
-    except Exception as e:
-        print(f"[ERROR] Category Units: {e}")
-        return {"labels": [], "data": []}
 @app.get("/api/category-value/{year}")
 async def get_category_value(year: int):
     try:
         data = df[df["Tahun"] == year].copy()
         if data.empty:
             return {"labels": [], "data": []}
-
         # Agregasi kategori → total nilai pengeluaran
         category_agg = (
             data.groupby("Kategori")["TotalHarga"]
             .sum()
-            .nlargest(5)
+            .nlargest(6)  # Ambil 6 kategori teratas
             .reset_index()
         )
-
         return {
             "labels": category_agg["Kategori"].tolist(),
             "data": [float(x) for x in category_agg["TotalHarga"].tolist()],
         }
-
     except Exception as e:
         print(f"[ERROR] Category Value: {e}")
         return {"labels": [], "data": []}
-
-
 @app.get("/api/category-unit/{year}")
 async def get_category_unit(year: int):
     try:
         data = df[df["Tahun"] == year].copy()
         if data.empty:
             return {"labels": [], "data": []}
-
         # Agregasi kategori → total unit permintaan
         category_agg = (
             data.groupby("Kategori")["Jumlah"]
             .sum()
-            .nlargest(5)
+            .nlargest(6)  # Ambil 6 kategori teratas
             .reset_index()
         )
-
         return {
             "labels": category_agg["Kategori"].tolist(),
             "data": [int(x) for x in category_agg["Jumlah"].tolist()],
         }
-
     except Exception as e:
         print(f"[ERROR] Category Unit: {e}")
         return {"labels": [], "data": []}
@@ -621,11 +590,18 @@ async def get_all_items(year: int):
         item_agg = (
             data.groupby(["Kategori", "NamaBrg"])
             .agg(
-                TotalPermintaan=("Jumlah", "sum")
+                TotalPermintaan=("Jumlah", "sum"),
+                TotalHarga=("TotalHarga", "sum")  # tambahan
             )
             .reset_index()
-            .sort_values("TotalPermintaan", ascending=False)
         )
+
+        # Hitung HargaSatuan rata-rata
+        item_agg["HargaSatuan"] = item_agg["TotalHarga"] / item_agg["TotalPermintaan"]
+        item_agg["HargaSatuan"] = item_agg["HargaSatuan"].fillna(0).round(2)
+
+        # Urutkan berdasarkan TotalPermintaan
+        item_agg = item_agg.sort_values("TotalPermintaan", ascending=False)
 
         items = []
         for _, row in item_agg.iterrows():
@@ -633,12 +609,15 @@ async def get_all_items(year: int):
                 "Kategori": row["Kategori"],
                 "NamaBrg": row["NamaBrg"],
                 "TotalPermintaan": int(row["TotalPermintaan"]),
+                "HargaSatuan": float(row["HargaSatuan"])
             })
 
         return {"items": items}
 
     except Exception as e:
         print(f"[ERROR] All Items: {e}")
+        import traceback
+        traceback.print_exc()
         return {"items": []}
 
 @app.get("/api/item-detail/{year}/{item_name}")
@@ -647,7 +626,6 @@ async def get_item_detail_by_name(year: int, item_name: str):
         if year not in [2023, 2024, 2025]:
             return {"units": []}
 
-        # Decode URL-encoded item name
         decoded_item = unquote(item_name)
 
         # Filter data berdasarkan tahun dan nama barang
@@ -659,10 +637,13 @@ async def get_item_detail_by_name(year: int, item_name: str):
         if filtered.empty:
             return {"units": []}
 
-        # Group by UnitPemohon
+        # Group by UnitPemohon → jumlahkan Jumlah dan TotalHarga
         unit_agg = (
-            filtered.groupby("UnitPemohon")["Jumlah"]
-            .sum()
+            filtered.groupby("UnitPemohon")
+            .agg(
+                Jumlah=("Jumlah", "sum"),
+                TotalPengeluaran=("TotalHarga", "sum")  # ✅ LANGSUNG dari kolom TotalHarga
+            )
             .reset_index()
             .sort_values("Jumlah", ascending=False)
         )
@@ -671,14 +652,17 @@ async def get_item_detail_by_name(year: int, item_name: str):
         for _, row in unit_agg.iterrows():
             units.append({
                 "UnitPemohon": row["UnitPemohon"],
-                "Jumlah": int(row["Jumlah"])
+                "Jumlah": int(row["Jumlah"]),
+                "TotalPengeluaran": float(row["TotalPengeluaran"])  # ✅ Nilai sebenarnya
             })
 
         return {"units": units}
 
     except Exception as e:
         print(f"[ERROR] Item Detail for '{item_name}' in {year}: {e}")
-        return {"units": []}\
+        import traceback
+        traceback.print_exc()
+        return {"units": []}
 
 # =====================================================
 # ✅ Endpoint 9: ChatBot Query (Dynamic)
