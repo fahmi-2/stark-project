@@ -10,14 +10,14 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Accept build argument for API URL
-ARG REACT_APP_API_URL=http://localhost:801
+# Accept build argument for API URL with default fallback
+ARG REACT_APP_API_URL=https://stark-backend.legain.id
 
 # Copy all files (including .env)
 COPY . .
 
-# Set environment variable for runtime
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
+# Set environment variable for runtime - CRITICAL for npm start!
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
 
 # Expose port 3000
 EXPOSE 3000
