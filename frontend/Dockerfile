@@ -13,14 +13,20 @@ RUN npm install
 # Accept build argument for API URL with default fallback
 ARG REACT_APP_API_URL=https://stark-backend.legain.id
 
-# Copy all files (including .env)
+# Set environment variable BEFORE building - this bakes it into the bundle
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+
+# Copy all files
 COPY . .
 
-# Set environment variable for runtime - CRITICAL for npm start!
-ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+# Build the production bundle (environment variables get baked in here)
+RUN npm run build
+
+# Install serve to run the production build
+RUN npm install -g serve
 
 # Expose port 3000
 EXPOSE 3000
 
-# Start the development server
-CMD ["npm", "start"]
+# Serve the production build
+CMD ["serve", "-s", "build", "-l", "3000"]
