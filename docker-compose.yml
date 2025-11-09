@@ -14,7 +14,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     networks:
-      - stark-network
+      - caddy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -33,7 +33,7 @@ services:
     depends_on:
       - backend
     networks:
-      - stark-network
+      - caddy
     restart: unless-stopped
     environment:
       - REACT_APP_API_URL=http://localhost:8000
@@ -53,5 +53,5 @@ services:
       start_period: 40s
 
 networks:
-  stark-network:
-    driver: bridge
+  caddy:
+    external: true
