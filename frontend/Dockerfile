@@ -10,11 +10,13 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
+# Accept build argument for API URL
+ARG REACT_APP_API_URL=http://localhost:801
+
 # Copy all files (including .env)
 COPY . .
 
-# Accept build argument for API URL
-ARG REACT_APP_API_URL
+# Set environment variable for runtime
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
 # Expose port 3000

@@ -28,7 +28,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - REACT_APP_API_URL=${REACT_APP_API_URL}
+        - REACT_APP_API_URL=https://stark-backend.legain.id
     container_name: stark-frontend
     ports:
       - "800:3000"
