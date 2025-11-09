@@ -29,7 +29,7 @@ services:
       dockerfile: Dockerfile
     container_name: stark-frontend
     ports:
-      - "800:80"
+      - "800:3000"
     depends_on:
       - backend
     networks:
