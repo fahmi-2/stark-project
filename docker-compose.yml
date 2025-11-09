@@ -37,8 +37,8 @@ services:
     networks:
       - caddy
     restart: unless-stopped
-    env_file:
-      - ./frontend/.env
+    environment:
+      - REACT_APP_API_URL=https://stark-backend.legain.id
     healthcheck:
       test:
         [
