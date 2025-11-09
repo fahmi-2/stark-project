@@ -36,7 +36,7 @@ services:
       - caddy
     restart: unless-stopped
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=http://localhost:801
     healthcheck:
       test:
         [
