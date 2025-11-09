@@ -1,6 +1,6 @@
 // src/pages/ItemAnalysisPage.js
-import React, { useState, useEffect, useMemo } from 'react';
-import { Bar } from 'react-chartjs-2';
+import React, { useState, useEffect, useMemo } from "react";
+import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   BarElement,
@@ -8,7 +8,8 @@ import {
   LinearScale,
   Tooltip,
   Legend, // Kita tetap import karena ChartJS.register menggunakannya
-} from 'chart.js';
+} from "chart.js";
+import { fetchAPI } from "../utils/api";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -16,19 +17,26 @@ const ITEMS_PER_PAGE = 10;
 
 const ItemAnalysisPage = () => {
   const [selectedYear, setSelectedYear] = useState(2025);
-  const [categoryValueData, setCategoryValueData] = useState({ labels: [], data: [] });
-  const [categoryUnitData, setCategoryUnitData] = useState({ labels: [], data: [] });
+  const [categoryValueData, setCategoryValueData] = useState({
+    labels: [],
+    data: [],
+  });
+  const [categoryUnitData, setCategoryUnitData] = useState({
+    labels: [],
+    data: [],
+  });
   const [allItems, setAllItems] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [detailModal, setDetailModal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1); // Pagination
 
   // Format Rupiah
   const formatRupiah = (value) => {
-    if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(1)}M`;
+    if (value >= 1_000_000_000)
+      return `Rp ${(value / 1_000_000_000).toFixed(1)}M`;
     if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)}jt`;
-    return `Rp ${Math.round(value).toLocaleString('id-ID')}`;
+    return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
   };
 
   // Fetch data
@@ -37,13 +45,13 @@ const ItemAnalysisPage = () => {
       try {
         setLoading(true);
         const [valueRes, unitRes, itemsRes] = await Promise.all([
-          fetch(`http://localhost:8000/api/category-value/${selectedYear}`),
-          fetch(`http://localhost:8000/api/category-unit/${selectedYear}`),
-          fetch(`http://localhost:8000/api/all-items/${selectedYear}`)
+          fetchAPI(`/api/category-value/${selectedYear}`),
+          fetchAPI(`/api/category-unit/${selectedYear}`),
+          fetchAPI(`/api/all-items/${selectedYear}`),
         ]);
 
         if (!valueRes.ok || !unitRes.ok || !itemsRes.ok) {
-          throw new Error('Gagal mengambil data');
+          throw new Error("Gagal mengambil data");
         }
 
         const valueData = await valueRes.json();
@@ -53,24 +61,24 @@ const ItemAnalysisPage = () => {
         // Pastikan data valid
         setCategoryValueData({
           labels: Array.isArray(valueData.labels) ? valueData.labels : [],
-          data: Array.isArray(valueData.data) ? valueData.data : []
+          data: Array.isArray(valueData.data) ? valueData.data : [],
         });
 
         setCategoryUnitData({
           labels: Array.isArray(unitData.labels) ? unitData.labels : [],
-          data: Array.isArray(unitData.data) ? unitData.data : []
+          data: Array.isArray(unitData.data) ? unitData.data : [],
         });
 
         // Tambahkan HargaSatuan jika ada (pastikan API mengembalikannya)
-        const itemsWithPrice = itemsData.items?.map(item => ({
-          ...item,
-          HargaSatuan: item.HargaSatuan || 0, // Jika tidak ada, default 0
-        })) || [];
+        const itemsWithPrice =
+          itemsData.items?.map((item) => ({
+            ...item,
+            HargaSatuan: item.HargaSatuan || 0, // Jika tidak ada, default 0
+          })) || [];
 
         setAllItems(itemsWithPrice);
-
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error("Error fetching data:", err);
       } finally {
         setLoading(false);
       }
@@ -81,9 +89,10 @@ const ItemAnalysisPage = () => {
 
   // Filter items berdasarkan pencarian
   const filteredItems = useMemo(() => {
-    return allItems.filter(item =>
-      item.NamaBrg.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.Kategori.toLowerCase().includes(searchTerm.toLowerCase())
+    return allItems.filter(
+      (item) =>
+        item.NamaBrg.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.Kategori.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [allItems, searchTerm]);
 
@@ -105,29 +114,30 @@ const ItemAnalysisPage = () => {
   // Ambil detail unit pemohon
   const handleShowDetail = async (namaBarang) => {
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/item-detail/${selectedYear}/${encodeURIComponent(namaBarang)}`
+      const res = await fetchAPI(
+        `/api/item-detail/${selectedYear}/${encodeURIComponent(namaBarang)}`
       );
       const data = await res.json();
-      
+
       // Ambil harga satuan dari allItems (jika ada)
-      const item = allItems.find(i => i.NamaBrg === namaBarang);
+      const item = allItems.find((i) => i.NamaBrg === namaBarang);
       const hargaSatuan = item?.HargaSatuan || 0;
 
       // Tambahkan total pengeluaran per unit
-      const unitsWithCost = data.units?.map(unit => ({
-        ...unit,
-        TotalPengeluaran: unit.Jumlah * hargaSatuan
-      })) || [];
+      const unitsWithCost =
+        data.units?.map((unit) => ({
+          ...unit,
+          TotalPengeluaran: unit.Jumlah * hargaSatuan,
+        })) || [];
 
-      setDetailModal({ 
-        namaBarang, 
+      setDetailModal({
+        namaBarang,
         units: unitsWithCost,
-        hargaSatuan: hargaSatuan
+        hargaSatuan: hargaSatuan,
       });
     } catch (err) {
-      console.error('Gagal ambil detail unit:', err);
-      alert('Gagal memuat detail unit');
+      console.error("Gagal ambil detail unit:", err);
+      alert("Gagal memuat detail unit");
     }
   };
 
@@ -149,7 +159,7 @@ const ItemAnalysisPage = () => {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: (value) => `Rp ${value.toLocaleString('id-ID')}`,
+          callback: (value) => `Rp ${value.toLocaleString("id-ID")}`,
         },
       },
     },
@@ -158,7 +168,7 @@ const ItemAnalysisPage = () => {
   const barUnitOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    indexAxis: 'y',
+    indexAxis: "y",
     plugins: {
       legend: { display: false }, // ✅ LEGEND DIMATIKAN
       tooltip: {
@@ -175,27 +185,34 @@ const ItemAnalysisPage = () => {
   // Chart Data - AMAN dari undefined
   const barValueData = useMemo(() => {
     return {
-      labels: categoryValueData.labels?.length > 0 ? categoryValueData.labels : ["Tidak Ada Data"],
+      labels:
+        categoryValueData.labels?.length > 0
+          ? categoryValueData.labels
+          : ["Tidak Ada Data"],
       datasets: [
         {
-          label: 'Nilai Pengeluaran',
-          data: categoryValueData.data?.length > 0 ? categoryValueData.data : [0],
-          backgroundColor: '#3b82f6',
-        }
-      ]
+          label: "Nilai Pengeluaran",
+          data:
+            categoryValueData.data?.length > 0 ? categoryValueData.data : [0],
+          backgroundColor: "#3b82f6",
+        },
+      ],
     };
   }, [categoryValueData]);
 
   const barUnitData = useMemo(() => {
     return {
-      labels: categoryUnitData.labels?.length > 0 ? categoryUnitData.labels : ["Tidak Ada Data"],
+      labels:
+        categoryUnitData.labels?.length > 0
+          ? categoryUnitData.labels
+          : ["Tidak Ada Data"],
       datasets: [
         {
-          label: 'Total Unit Diminta',
+          label: "Total Unit Diminta",
           data: categoryUnitData.data?.length > 0 ? categoryUnitData.data : [0],
-          backgroundColor: '#10b981',
-        }
-      ]
+          backgroundColor: "#10b981",
+        },
+      ],
     };
   }, [categoryUnitData]);
 
@@ -207,7 +224,8 @@ const ItemAnalysisPage = () => {
     <div className="page-content">
       <div className="analytics-header">
         <h1 className="page-title">
-          <i className="fas fa-boxes"></i> Analisis Barang - Distribusi Permintaan Kategori & Detail Barang
+          <i className="fas fa-boxes"></i> Analisis Barang - Distribusi
+          Permintaan Kategori & Detail Barang
         </h1>
         <div className="filter-section">
           <span className="filter-label">Tahun:</span>
@@ -222,30 +240,36 @@ const ItemAnalysisPage = () => {
           </select>
         </div>
       </div>
-
       <div className="charts-grid">
         <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi</h3>
-          <div className="chart-container" style={{ height: '300px' }}>
+          <h3 className="chart-title">
+            Kategori Barang dengan Nilai Pengeluaran Tertinggi
+          </h3>
+          <div className="chart-container" style={{ height: "300px" }}>
             {categoryValueData.labels?.length > 0 ? (
               <Bar data={barValueData} options={barValueOptions} />
             ) : (
-              <div className="chart-placeholder">Tidak ada data nilai pengeluaran</div>
+              <div className="chart-placeholder">
+                Tidak ada data nilai pengeluaran
+              </div>
             )}
           </div>
         </div>
         <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi</h3>
-          <div className="chart-container" style={{ height: '300px' }}>
+          <h3 className="chart-title">
+            Kategori Barang dengan Volume Unit Pengeluaran Tertinggi
+          </h3>
+          <div className="chart-container" style={{ height: "300px" }}>
             {categoryUnitData.labels?.length > 0 ? (
               <Bar data={barUnitData} options={barUnitOptions} />
             ) : (
-              <div className="chart-placeholder">Tidak ada data volume unit</div>
+              <div className="chart-placeholder">
+                Tidak ada data volume unit
+              </div>
             )}
           </div>
         </div>
       </div>
-
       <div className="table-card">
         <h3 className="chart-title">Tabel Detail Semua Barang yang Diminta</h3>
         <div className="search-bar">
@@ -287,7 +311,7 @@ const ItemAnalysisPage = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center' }}>
+                <td colSpan="5" style={{ textAlign: "center" }}>
                   Tidak ada data barang ditemukan
                 </td>
               </tr>
@@ -297,34 +321,43 @@ const ItemAnalysisPage = () => {
 
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="pagination-controls" style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+          <div
+            className="pagination-controls"
+            style={{
+              marginTop: "16px",
+              display: "flex",
+              justifyContent: "center",
+              gap: "8px",
+            }}
+          >
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
               style={{
-                padding: '6px 12px',
-                backgroundColor: currentPage === 1 ? '#e5e7eb' : '#3b82f6',
-                color: currentPage === 1 ? '#9ca3af' : 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                padding: "6px 12px",
+                backgroundColor: currentPage === 1 ? "#e5e7eb" : "#3b82f6",
+                color: currentPage === 1 ? "#9ca3af" : "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: currentPage === 1 ? "not-allowed" : "pointer",
               }}
             >
               Previous
             </button>
-            <span style={{ alignSelf: 'center' }}>
+            <span style={{ alignSelf: "center" }}>
               Halaman {currentPage} dari {totalPages}
             </span>
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
               style={{
-                padding: '6px 12px',
-                backgroundColor: currentPage === totalPages ? '#e5e7eb' : '#3b82f6',
-                color: currentPage === totalPages ? '#9ca3af' : 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                padding: "6px 12px",
+                backgroundColor:
+                  currentPage === totalPages ? "#e5e7eb" : "#3b82f6",
+                color: currentPage === totalPages ? "#9ca3af" : "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: currentPage === totalPages ? "not-allowed" : "pointer",
               }}
             >
               Next
@@ -332,20 +365,23 @@ const ItemAnalysisPage = () => {
           </div>
         )}
       </div>
-
       // ... (kode lainnya tetap sama hingga bagian modal)
-
       {/* Modal Detail Unit */}
       {detailModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h4>Nama Barang: {detailModal.namaBarang}</h4>
-              <button className="close-btn" onClick={closeModal}>×</button>
+              <button className="close-btn" onClick={closeModal}>
+                ×
+              </button>
             </div>
             <div className="modal-body">
               {/* Harga Satuan */}
-              <p><strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}</p>
+              <p>
+                <strong>Harga Satuan:</strong>{" "}
+                {formatRupiah(detailModal.hargaSatuan)}
+              </p>
 
               {detailModal.units.length > 0 ? (
                 <table className="detail-table">
@@ -367,17 +403,20 @@ const ItemAnalysisPage = () => {
                   </tbody>
                 </table>
               ) : (
-                <p>Tidak ada unit pemohon untuk barang ini di tahun {selectedYear}.</p>
+                <p>
+                  Tidak ada unit pemohon untuk barang ini di tahun{" "}
+                  {selectedYear}.
+                </p>
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={closeModal}>Tutup</button>
+              <button className="btn btn-secondary" onClick={closeModal}>
+                Tutup
+              </button>
             </div>
           </div>
         </div>
       )}
-
-
       {/* Inline Styles untuk Modal & UI */}
       <style jsx>{`
         .modal-overlay {
@@ -386,7 +425,7 @@ const ItemAnalysisPage = () => {
           left: 0;
           width: 100%;
           height: 100%;
-          background: rgba(0,0,0,0.5);
+          background: rgba(0, 0, 0, 0.5);
           display: flex;
           justify-content: center;
           align-items: center;
