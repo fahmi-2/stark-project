@@ -1,4 +1,3 @@
-// src/pages/ItemAnalysisPage.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -7,22 +6,29 @@ import {
   CategoryScale,
   LinearScale,
   Tooltip,
-  Legend, // Kita tetap import karena ChartJS.register menggunakannya
+  Legend,
 } from 'chart.js';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 const ITEMS_PER_PAGE = 10;
+const ALL_YEARS = [2023, 2024, 2025];
 
 const ItemAnalysisPage = () => {
-  const [selectedYear, setSelectedYear] = useState(2025);
+  // === State untuk Grafik ===
+  const [selectedYearsForCharts, setSelectedYearsForCharts] = useState([...ALL_YEARS]); // Default semua tahun
+
+  // === State untuk Tabel & Modal Detail ===
+  const [selectedYearForTable, setSelectedYearForTable] = useState(2025); // Default 2025
+
+  // === Data ===
   const [categoryValueData, setCategoryValueData] = useState({ labels: [], data: [] });
   const [categoryUnitData, setCategoryUnitData] = useState({ labels: [], data: [] });
-  const [allItems, setAllItems] = useState([]);
+  const [allItemsForTable, setAllItemsForTable] = useState([]); // Data untuk tabel
   const [searchTerm, setSearchTerm] = useState('');
   const [detailModal, setDetailModal] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1); // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Format Rupiah
   const formatRupiah = (value) => {
@@ -31,61 +37,119 @@ const ItemAnalysisPage = () => {
     return `Rp ${Math.round(value).toLocaleString('id-ID')}`;
   };
 
-  // Fetch data
+  // === Toggle Tahun untuk Grafik ===
+  const toggleYearForCharts = (year) => {
+    if (selectedYearsForCharts.includes(year)) {
+      const newSelection = selectedYearsForCharts.filter(y => y !== year);
+      setSelectedYearsForCharts(newSelection.length ? newSelection : [...ALL_YEARS]);
+    } else {
+      setSelectedYearsForCharts([...selectedYearsForCharts, year]);
+    }
+  };
+
+  const toggleAllYearsForCharts = () => {
+    if (selectedYearsForCharts.length === ALL_YEARS.length) {
+      setSelectedYearsForCharts([2025]);
+    } else {
+      setSelectedYearsForCharts([...ALL_YEARS]);
+    }
+  };
+
+  // === Fetch Data Grafik ===
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDataCharts = async () => {
       try {
         setLoading(true);
-        const [valueRes, unitRes, itemsRes] = await Promise.all([
-          fetch(`http://localhost:8000/api/category-value/${selectedYear}`),
-          fetch(`http://localhost:8000/api/category-unit/${selectedYear}`),
-          fetch(`http://localhost:8000/api/all-items/${selectedYear}`)
-        ]);
 
-        if (!valueRes.ok || !unitRes.ok || !itemsRes.ok) {
-          throw new Error('Gagal mengambil data');
+        if (selectedYearsForCharts.length === 1) {
+          // Single year: gunakan API lama
+          const year = selectedYearsForCharts[0];
+          const [valueRes, unitRes] = await Promise.all([
+            fetch(`http://localhost:8000/api/category-value/${year}`),
+            fetch(`http://localhost:8000/api/category-unit/${year}`)
+          ]);
+
+          const valueData = await valueRes.json();
+          const unitData = await unitRes.json();
+
+          setCategoryValueData({
+            labels: valueData.labels || [],
+            data: valueData.data || []
+          });
+          setCategoryUnitData({
+            labels: unitData.labels || [],
+            data: unitData.data || []
+          });
+
+        } else {
+          // Multi-year: fetch per tahun & agregasi di frontend
+          const fetchPromises = selectedYearsForCharts.map(year => Promise.all([
+            fetch(`http://localhost:8000/api/category-value/${year}`).then(r => r.json()),
+            fetch(`http://localhost:8000/api/category-unit/${year}`).then(r => r.json())
+          ]));
+
+          const allResponses = await Promise.all(fetchPromises);
+          const valueResponses = allResponses.map(res => res[0]);
+          const unitResponses = allResponses.map(res => res[1]);
+
+          // Agregasi kategori nilai & unit
+          const aggregateData = (dataList) => {
+            const result = {};
+            dataList.forEach(data => {
+              if (!data || !Array.isArray(data.labels)) return;
+              data.labels.forEach((label, i) => {
+                if (!result[label]) result[label] = 0;
+                result[label] += data.data[i];
+              });
+            });
+            const sorted = Object.entries(result)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 6);
+            return {
+              labels: sorted.map(([label]) => label),
+              data: sorted.map(([, value]) => value)
+            };
+          };
+
+          setCategoryValueData(aggregateData(valueResponses));
+          setCategoryUnitData(aggregateData(unitResponses));
         }
-
-        const valueData = await valueRes.json();
-        const unitData = await unitRes.json();
-        const itemsData = await itemsRes.json();
-
-        // Pastikan data valid
-        setCategoryValueData({
-          labels: Array.isArray(valueData.labels) ? valueData.labels : [],
-          data: Array.isArray(valueData.data) ? valueData.data : []
-        });
-
-        setCategoryUnitData({
-          labels: Array.isArray(unitData.labels) ? unitData.labels : [],
-          data: Array.isArray(unitData.data) ? unitData.data : []
-        });
-
-        // Tambahkan HargaSatuan jika ada (pastikan API mengembalikannya)
-        const itemsWithPrice = itemsData.items?.map(item => ({
-          ...item,
-          HargaSatuan: item.HargaSatuan || 0, // Jika tidak ada, default 0
-        })) || [];
-
-        setAllItems(itemsWithPrice);
-
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error fetching chart data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [selectedYear]);
+    fetchDataCharts();
+  }, [selectedYearsForCharts]);
+
+  // === Fetch Data Tabel (berdasarkan selectedYearForTable) ===
+  useEffect(() => {
+    const fetchDataTable = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`http://localhost:8000/api/all-items/${selectedYearForTable}`);
+        const data = await res.json();
+        setAllItemsForTable(data.items?.map(item => ({ ...item, HargaSatuan: item.HargaSatuan || 0 })) || []);
+      } catch (err) {
+        console.error('Error fetching table data:', err);
+        setAllItemsForTable([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDataTable();
+  }, [selectedYearForTable]);
 
   // Filter items berdasarkan pencarian
   const filteredItems = useMemo(() => {
-    return allItems.filter(item =>
+    return allItemsForTable.filter(item =>
       item.NamaBrg.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.Kategori.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [allItems, searchTerm]);
+  }, [allItemsForTable, searchTerm]);
 
   // Pagination
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -102,28 +166,29 @@ const ItemAnalysisPage = () => {
     }
   };
 
-  // Ambil detail unit pemohon
+  // Ambil detail unit pemohon (menggunakan selectedYearForTable)
   const handleShowDetail = async (namaBarang) => {
     try {
       const res = await fetch(
-        `http://localhost:8000/api/item-detail/${selectedYear}/${encodeURIComponent(namaBarang)}`
+        `http://localhost:8000/api/item-detail/${selectedYearForTable}/${encodeURIComponent(namaBarang)}`
       );
       const data = await res.json();
-      
-      // Ambil harga satuan dari allItems (jika ada)
-      const item = allItems.find(i => i.NamaBrg === namaBarang);
+
+      const item = allItemsForTable.find(i => i.NamaBrg === namaBarang);
       const hargaSatuan = item?.HargaSatuan || 0;
 
-      // Tambahkan total pengeluaran per unit
-      const unitsWithCost = data.units?.map(unit => ({
+      const unitsWithCost = (data.units || []).map(unit => ({
         ...unit,
         TotalPengeluaran: unit.Jumlah * hargaSatuan
-      })) || [];
+      }));
 
-      setDetailModal({ 
-        namaBarang, 
+      setDetailModal({
+        namaBarang,
         units: unitsWithCost,
-        hargaSatuan: hargaSatuan
+        hargaSatuan: hargaSatuan,
+        noUnitsMessage: data.units && data.units.length === 0
+          ? `Tidak ada unit pemohon yang meminta "${namaBarang}" di tahun ${selectedYearForTable}.`
+          : null
       });
     } catch (err) {
       console.error('Gagal ambil detail unit:', err);
@@ -133,12 +198,12 @@ const ItemAnalysisPage = () => {
 
   const closeModal = () => setDetailModal(null);
 
-  // Chart Options - LEGEND DINONAKTIFKAN
+  // Chart Options
   const barValueOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false }, // ✅ LEGEND DIMATIKAN
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: (ctx) => `${ctx.label}: ${formatRupiah(ctx.raw)}`,
@@ -160,7 +225,7 @@ const ItemAnalysisPage = () => {
     maintainAspectRatio: false,
     indexAxis: 'y',
     plugins: {
-      legend: { display: false }, // ✅ LEGEND DIMATIKAN
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: (ctx) => `${ctx.label}: ${ctx.raw.toLocaleString()} unit`,
@@ -172,32 +237,24 @@ const ItemAnalysisPage = () => {
     },
   };
 
-  // Chart Data - AMAN dari undefined
-  const barValueData = useMemo(() => {
-    return {
-      labels: categoryValueData.labels?.length > 0 ? categoryValueData.labels : ["Tidak Ada Data"],
-      datasets: [
-        {
-          label: 'Nilai Pengeluaran',
-          data: categoryValueData.data?.length > 0 ? categoryValueData.data : [0],
-          backgroundColor: '#3b82f6',
-        }
-      ]
-    };
-  }, [categoryValueData]);
+  // Chart Data
+  const barValueData = useMemo(() => ({
+    labels: categoryValueData.labels?.length > 0 ? categoryValueData.labels : ["Tidak Ada Data"],
+    datasets: [{
+      label: 'Nilai Pengeluaran',
+      data: categoryValueData.data?.length > 0 ? categoryValueData.data : [0],
+      backgroundColor: '#3b82f6',
+    }]
+  }), [categoryValueData]);
 
-  const barUnitData = useMemo(() => {
-    return {
-      labels: categoryUnitData.labels?.length > 0 ? categoryUnitData.labels : ["Tidak Ada Data"],
-      datasets: [
-        {
-          label: 'Total Unit Diminta',
-          data: categoryUnitData.data?.length > 0 ? categoryUnitData.data : [0],
-          backgroundColor: '#10b981',
-        }
-      ]
-    };
-  }, [categoryUnitData]);
+  const barUnitData = useMemo(() => ({
+    labels: categoryUnitData.labels?.length > 0 ? categoryUnitData.labels : ["Tidak Ada Data"],
+    datasets: [{
+      label: 'Total Unit Diminta',
+      data: categoryUnitData.data?.length > 0 ? categoryUnitData.data : [0],
+      backgroundColor: '#10b981',
+    }]
+  }), [categoryUnitData]);
 
   if (loading) {
     return <div className="page-content">Loading...</div>;
@@ -210,11 +267,36 @@ const ItemAnalysisPage = () => {
           <i className="fas fa-boxes"></i> Analisis Barang - Distribusi Permintaan Kategori & Detail Barang
         </h1>
         <div className="filter-section">
-          <span className="filter-label">Tahun:</span>
+          {/* Filter untuk Grafik */}
+          <span className="filter-label">Tahun (Grafik):</span>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <input
+                type="checkbox"
+                checked={selectedYearsForCharts.length === ALL_YEARS.length}
+                onChange={toggleAllYearsForCharts}
+              />
+              <span>Semua Tahun</span>
+            </label>
+            {ALL_YEARS.map((year) => (
+              <label key={`chart-${year}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedYearsForCharts.includes(year)}
+                  onChange={() => toggleYearForCharts(year)}
+                />
+                <span>{year}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Filter untuk Tabel */}
+          <span className="filter-label" style={{ marginLeft: '24px' }}>Tahun (Tabel & Detail):</span>
           <select
             className="year-filter-select"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            value={selectedYearForTable}
+            onChange={(e) => setSelectedYearForTable(Number(e.target.value))}
+            style={{ marginLeft: '8px' }}
           >
             <option value={2025}>2025</option>
             <option value={2024}>2024</option>
@@ -225,7 +307,7 @@ const ItemAnalysisPage = () => {
 
       <div className="charts-grid">
         <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi</h3>
+          <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi ({selectedYearsForCharts.length === ALL_YEARS.length ? 'Semua Tahun' : selectedYearsForCharts.join(', ')})</h3>
           <div className="chart-container" style={{ height: '300px' }}>
             {categoryValueData.labels?.length > 0 ? (
               <Bar data={barValueData} options={barValueOptions} />
@@ -235,7 +317,7 @@ const ItemAnalysisPage = () => {
           </div>
         </div>
         <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi</h3>
+          <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi ({selectedYearsForCharts.length === ALL_YEARS.length ? 'Semua Tahun' : selectedYearsForCharts.join(', ')})</h3>
           <div className="chart-container" style={{ height: '300px' }}>
             {categoryUnitData.labels?.length > 0 ? (
               <Bar data={barUnitData} options={barUnitOptions} />
@@ -247,7 +329,7 @@ const ItemAnalysisPage = () => {
       </div>
 
       <div className="table-card">
-        <h3 className="chart-title">Tabel Detail Semua Barang yang Diminta</h3>
+        <h3 className="chart-title">Tabel Detail Semua Barang yang Diminta (Tahun {selectedYearForTable})</h3>
         <div className="search-bar">
           <input
             type="text"
@@ -295,45 +377,18 @@ const ItemAnalysisPage = () => {
           </tbody>
         </table>
 
-        {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="pagination-controls" style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: currentPage === 1 ? '#e5e7eb' : '#3b82f6',
-                color: currentPage === 1 ? '#9ca3af' : 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-              }}
-            >
+            <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} style={{ padding: '6px 12px', backgroundColor: currentPage === 1 ? '#e5e7eb' : '#3b82f6', color: currentPage === 1 ? '#9ca3af' : 'white', border: 'none', borderRadius: '4px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}>
               Previous
             </button>
-            <span style={{ alignSelf: 'center' }}>
-              Halaman {currentPage} dari {totalPages}
-            </span>
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: currentPage === totalPages ? '#e5e7eb' : '#3b82f6',
-                color: currentPage === totalPages ? '#9ca3af' : 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-              }}
-            >
+            <span style={{ alignSelf: 'center' }}>Halaman {currentPage} dari {totalPages}</span>
+            <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} style={{ padding: '6px 12px', backgroundColor: currentPage === totalPages ? '#e5e7eb' : '#3b82f6', color: currentPage === totalPages ? '#9ca3af' : 'white', border: 'none', borderRadius: '4px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}>
               Next
             </button>
           </div>
         )}
       </div>
-
-      // ... (kode lainnya tetap sama hingga bagian modal)
 
       {/* Modal Detail Unit */}
       {detailModal && (
@@ -344,10 +399,8 @@ const ItemAnalysisPage = () => {
               <button className="close-btn" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
-              {/* Harga Satuan */}
               <p><strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}</p>
-
-              {detailModal.units.length > 0 ? (
+              {detailModal.units && detailModal.units.length > 0 ? (
                 <table className="detail-table">
                   <thead>
                     <tr>
@@ -367,7 +420,7 @@ const ItemAnalysisPage = () => {
                   </tbody>
                 </table>
               ) : (
-                <p>Tidak ada unit pemohon untuk barang ini di tahun {selectedYear}.</p>
+                <p>{detailModal.noUnitsMessage || `Tidak ada unit pemohon untuk barang ini di tahun ${selectedYearForTable}.`}</p>
               )}
             </div>
             <div className="modal-footer">
@@ -377,8 +430,6 @@ const ItemAnalysisPage = () => {
         </div>
       )}
 
-
-      {/* Inline Styles untuk Modal & UI */}
       <style jsx>{`
         .modal-overlay {
           position: fixed;
