@@ -69,6 +69,20 @@ def parse_years_param(years_param: str):
         return sorted(set(int(y.strip()) for y in years_param.split(",") if y.strip().isdigit()))
     except:
         return [2025]
+
+
+def safe_float(value):
+    """Convert value to float, handling NaN and Inf"""
+    if pd.isna(value):
+        return 0.0
+    f = float(value)
+    if not (f == f):  # Check for NaN (NaN != NaN)
+        return 0.0
+    if f == float('inf'):
+        return 0.0
+    if f == float('-inf'):
+        return 0.0
+    return f
 # =====================================================
 # ✅ Endpoint 1: Ringkasan Keseluruhan Semua Data
 # =====================================================
@@ -560,8 +574,8 @@ async def get_top_requesters(years: str = "2025"):
         top_requesters.append({
             "Kategori": row["Kategori"],
             "UnitPemohon": row["UnitPemohon"],
-            "TotalPermintaan": int(row["TotalPermintaan"]),
-            "TotalPengeluaran": float(row["TotalPengeluaran"]),
+            "TotalPermintaan": int(row["TotalPermintaan"]) if not pd.isna(row["TotalPermintaan"]) else 0,
+            "TotalPengeluaran": safe_float(row["TotalPengeluaran"]),
             "KelasPermintaan": row["label_segmen"]
         })
 
@@ -987,7 +1001,7 @@ async def get_unit_scatter_data(years: str = "all"):
 
         result = []
         for _, row in agg.iterrows():
-            total_pengeluaran = row["TotalPengeluaran"]
+            total_pengeluaran = safe_float(row["TotalPengeluaran"])
             # Klasifikasi segmen berdasarkan ambang batas dari data yang difilter
             if total_pengeluaran >= e66:
                 segmen = "Boros"
@@ -997,8 +1011,8 @@ async def get_unit_scatter_data(years: str = "all"):
                 segmen = "Hemat"
             result.append({
                 "UnitPemohon": row["UnitPemohon"],
-                "TotalPermintaan": int(row["TotalPermintaan"]),
-                "TotalPengeluaran": float(row["TotalPengeluaran"]),
+                "TotalPermintaan": int(row["TotalPermintaan"]) if not pd.isna(row["TotalPermintaan"]) else 0,
+                "TotalPengeluaran": total_pengeluaran,
                 "Segmen": segmen
             })
         return {"units": result}
@@ -1240,14 +1254,16 @@ async def get_top_spending_units(years: str = "2025"):
 
             result.append({
                 "UnitPemohon": row["UnitPemohon"],
-                "TotalPengeluaran": float(row["TotalPengeluaran"]),
-                "TotalPermintaan": int(row["TotalPermintaan"]),
+                "TotalPengeluaran": safe_float(row["TotalPengeluaran"]),
+                "TotalPermintaan": int(row["TotalPermintaan"]) if not pd.isna(row["TotalPermintaan"]) else 0,
                 "Segmen": segmen
             })
 
         return {"topSpendingUnits": result}
     except Exception as e:
         print(f"[ERROR] Top Spending Units: {e}")
+        import traceback
+        traceback.print_exc()
         return {"topSpendingUnits": []}
 
 
