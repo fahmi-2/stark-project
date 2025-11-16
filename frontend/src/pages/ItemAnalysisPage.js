@@ -251,7 +251,7 @@ const ItemAnalysisPage = () => {
   const barUnitData = useMemo(() => ({
     labels: categoryUnitData.labels?.length > 0 ? categoryUnitData.labels : ["Tidak Ada Data"],
     datasets: [{
-      label: 'Total Unit Diminta',
+      label: 'Total Barang Diminta',
       data: categoryUnitData.data?.length > 0 ? categoryUnitData.data : [0],
       backgroundColor: '#10b981',
     }]

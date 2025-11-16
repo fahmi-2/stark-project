@@ -69,6 +69,62 @@ def parse_years_param(years_param: str):
         return sorted(set(int(y.strip()) for y in years_param.split(",") if y.strip().isdigit()))
     except:
         return [2025]
+    
+# ====================
+# ✅ Hitung & Tambahkan Kolom Segmen
+# ====================
+# Agregasi dasar per Unit Pemohon untuk menghitung ambang batas
+unit_agg_for_segmen = df.groupby("UnitPemohon").agg(
+    TotalPermintaan=("Jumlah", "sum"),
+    TotalPengeluaran=("TotalHarga", "sum")
+).reset_index()
+
+# Tentukan ambang batas untuk Permintaan (Jumlah) → untuk LabelSegmen
+permintaan_vals = unit_agg_for_segmen["TotalPermintaan"]
+p33 = permintaan_vals.quantile(0.33)
+p66 = permintaan_vals.quantile(0.66)
+
+# Tentukan ambang batas untuk Pengeluaran (Uang) → untuk Segmen
+pengeluaran_vals = unit_agg_for_segmen["TotalPengeluaran"]
+e33 = pengeluaran_vals.quantile(0.33)
+e66 = pengeluaran_vals.quantile(0.66)
+
+# Buat dictionary mapping untuk UnitPemohon -> LabelSegmen & Segmen
+unit_to_label_segmen = {}
+unit_to_segmen = {}
+
+for _, row in unit_agg_for_segmen.iterrows():
+    total_permintaan = row["TotalPermintaan"]
+    total_pengeluaran = row["TotalPengeluaran"]
+
+    # Klasifikasi Permintaan (Jumlah Unit) → untuk LabelSegmen
+    if total_permintaan >= p66:
+        label_segmen = "Tinggi"
+    elif total_permintaan >= p33:
+        label_segmen = "Sedang"
+    else:
+        label_segmen = "Rendah"
+
+    # Klasifikasi Pengeluaran (Uang) → untuk Segmen
+    if total_pengeluaran >= e66:
+        segmen = "Boros"
+    elif total_pengeluaran >= e33:
+        segmen = "Sedang"
+    else:
+        segmen = "Hemat"
+
+    unit_to_label_segmen[row["UnitPemohon"]] = label_segmen
+    unit_to_segmen[row["UnitPemohon"]] = segmen
+
+# Tambahkan kolom baru ke DataFrame utama
+df["label_segmen"] = df["UnitPemohon"].map(unit_to_label_segmen)
+df["segmen"] = df["UnitPemohon"].map(unit_to_segmen)
+
+# Isi nilai NaN jika ada unit pemohon baru yang tidak tercakup dalam agregasi
+df["label_segmen"] = df["label_segmen"].fillna("Rendah")
+df["segmen"] = df["segmen"].fillna("Hemat")
+
+
 # =====================================================
 # ✅ Endpoint 1: Ringkasan Keseluruhan Semua Data
 # =====================================================
@@ -549,7 +605,7 @@ async def get_top_requesters(years: str = "2025"):
             TotalPermintaan=("Jumlah", "sum"),
             TotalPengeluaran=("TotalHarga", "sum"),
             Kategori=("Kategori", "first"),
-            label_segmen=("label_segmen", "first")
+            label_segmen=("label_segmen", "first") # <-- ERROR: Kolom 'label_segmen' TIDAK ADA!
         )
         .reset_index()
         .nlargest(5, "TotalPermintaan")
@@ -999,7 +1055,7 @@ async def get_unit_scatter_data(years: str = "all"):
                 "UnitPemohon": row["UnitPemohon"],
                 "TotalPermintaan": int(row["TotalPermintaan"]),
                 "TotalPengeluaran": float(row["TotalPengeluaran"]),
-                "Segmen": segmen
+                "Segmen": segmen # <-- ERROR: Kolom 'segmen' TIDAK ADA!
             })
         return {"units": result}
     except Exception as e:
@@ -1237,7 +1293,6 @@ async def get_top_spending_units(years: str = "2025"):
             # Ambil segmen dari dataset asli
             segmen_row = df[df["UnitPemohon"] == row["UnitPemohon"]]["segmen"]
             segmen = segmen_row.iloc[0] if not segmen_row.empty else "Tidak Diketahui"
-
             result.append({
                 "UnitPemohon": row["UnitPemohon"],
                 "TotalPengeluaran": float(row["TotalPengeluaran"]),

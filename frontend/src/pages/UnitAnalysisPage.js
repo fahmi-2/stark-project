@@ -291,7 +291,7 @@ const UnitAnalysisPage = () => {
     labels: topRequesters.map((item) => item.UnitPemohon),
     datasets: [
       {
-        label: "Total Unit Diminta",
+        label: "Total Barang Diminta",
         data: topRequesters.map((item) => item.TotalPermintaan),
         backgroundColor: "#3b82f6",
       },
