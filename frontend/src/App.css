@@ -15,7 +15,7 @@ body {
 .container {
   display: flex;
   min-height: 100vh;
-  
+  position: relative;
 }
 
 .sidebar {
@@ -24,6 +24,12 @@ body {
   color: white;
   box-shadow: 2px 0 10px rgba(0,0,0,0.1);
   background: linear-gradient(to bottom, #00205b, #00205b) !important;
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 1000;
 }
 
 .sidebar-header {
@@ -81,7 +87,7 @@ body {
   padding: 30px;
   overflow-y: auto;
   background: linear-gradient(to bottom, #dbeafe, #f0f9ff) !important;
-  
+  margin-left: 260px;
 }
 
 .page-content {
