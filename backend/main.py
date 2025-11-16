@@ -177,57 +177,98 @@ async def get_all_data():
 # =====================================================
 # ✅ Endpoint 2: Ringkasan & Top 5 Barang per Tahun
 # =====================================================
-
+import numpy as np
+from fastapi import HTTPException
 
 @app.get("/api/data-per-tahun")
 async def get_data_per_tahun():
-    """
-    Mengembalikan ringkasan data dan top 5 barang berdasarkan tiap tahun.
-    """
-    hasil = {}
-    tahun_list = sorted(df["Tahun"].unique())
+    try:
+        # Validasi df
+        if 'df' not in globals() or df.empty:
+            raise ValueError("DataFrame 'df' tidak tersedia.")
 
-    for tahun in tahun_list:
-        data_tahun = df[df["Tahun"] == tahun]
+        hasil = {}
 
-        totalRequests = int(data_tahun["Jumlah"].sum())
-        outflowValue = float(data_tahun["TotalHarga"].sum())
-        outflowValueFormatted = f"Rp{outflowValue:,.0f}".replace(",", ".")
-        totalUniqueRequesters = int(data_tahun["UnitPemohon"].nunique())
+        # Langkah 1: Ambil tahun unik, drop NaN, konversi ke Python int, lalu ke str (paling aman untuk key JSON)
+        tahun_series = df["Tahun"].dropna()
+        if tahun_series.empty:
+            return {}
 
-        # Top 5 barang per tahun
-        top_items_agg = (
-            data_tahun.groupby(["Kategori", "NamaBrg"])
-            .agg(
-                TotalPermintaan=("Jumlah", "sum"),
-                TopRequester=("UnitPemohon", lambda x: x.mode(
-                ).iloc[0] if not x.mode().empty else "N/A")
+        # Konversi ke int dulu (handle float/str), lalu ke str
+        try:
+            tahun_ints = pd.to_numeric(tahun_series, errors='coerce').dropna().astype(int)
+        except Exception as e:
+            raise ValueError(f"Gagal mengonversi kolom 'Tahun' ke angka: {e}")
+
+        tahun_list = sorted(tahun_ints.unique())
+
+        for tahun in tahun_list:
+            # 🔑 KUNCI: Pastikan key adalah string (JSON hanya izinkan string sebagai key)
+            tahun_key = str(int(tahun))  # double cast: numpy → int → str
+
+            data_tahun = df[df["Tahun"] == tahun]
+
+            if data_tahun.empty:
+                hasil[tahun_key] = {
+                    "totalRequests": 0,
+                    "outflowValueFormatted": "Rp0",
+                    "totalUniqueRequesters": 0,
+                    "fastMovingItems": "Tidak ada",
+                    "topItems": []
+                }
+                continue
+
+            # 🔢 Semua nilai numerik: cast ke Python native
+            totalRequests = int(data_tahun["Jumlah"].sum())  # ← int() mengonversi numpy → Python int
+            outflowValue = float(data_tahun["TotalHarga"].sum())  # ← float() → Python float
+
+            # Format rupiah (aman untuk float/int Python)
+            def format_rupiah(val: float) -> str:
+                val = abs(val)
+                rupiah = f"{val:,.0f}".replace(",", ".")
+                return f"Rp{rupiah}"
+
+            outflowValueFormatted = format_rupiah(outflowValue)
+            totalUniqueRequesters = int(data_tahun["UnitPemohon"].nunique())
+
+            # Top 5
+            top_items_agg = (
+                data_tahun.groupby(["Kategori", "NamaBrg"], as_index=False)
+                .agg(
+                    TotalPermintaan=("Jumlah", "sum"),
+                    TopRequester=("UnitPemohon", lambda x: x.mode().iloc[0] if not x.mode().empty else "N/A")
+                )
+                .nlargest(5, "TotalPermintaan")
             )
-            .reset_index()
-            .nlargest(5, "TotalPermintaan")
-        )
 
-        top_items = []
-        for _, row in top_items_agg.iterrows():
-            top_items.append({
-                "Kategori": row["Kategori"],
-                "NamaBrg": row["NamaBrg"],
-                "TopRequester": row["TopRequester"],
-                "Terjual": int(row["TotalPermintaan"])
-            })
+            top_items = []
+            for _, row in top_items_agg.iterrows():
+                # 🛡️ Cast setiap nilai ke tipe Python!
+                top_items.append({
+                    "Kategori": str(row["Kategori"]),
+                    "NamaBrg": str(row["NamaBrg"]),
+                    "TopRequester": str(row["TopRequester"]),
+                    "Terjual": int(row["TotalPermintaan"])  # ← ini sering numpy.int64!
+                })
 
-        fastMovingItems = top_items[0]["NamaBrg"] if top_items else "Tidak ada"
+            fastMovingItems = top_items[0]["NamaBrg"] if top_items else "Tidak ada"
 
-        hasil[tahun] = {
-            "totalRequests": totalRequests,
-            "outflowValueFormatted": outflowValueFormatted,
-            "totalUniqueRequesters": totalUniqueRequesters,
-            "fastMovingItems": fastMovingItems,
-            "topItems": top_items
-        }
+            hasil[tahun_key] = {
+                "totalRequests": totalRequests,
+                "outflowValueFormatted": outflowValueFormatted,
+                "totalUniqueRequesters": totalUniqueRequesters,
+                "fastMovingItems": fastMovingItems,
+                "topItems": top_items
+            }
 
-    return hasil
+        return hasil
 
+    except Exception as e:
+        import traceback
+        print("[ERROR] Traceback lengkap:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+    
 # =====================================================
 # ✅ Root Endpoint
 # =====================================================
