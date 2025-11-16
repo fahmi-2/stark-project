@@ -649,7 +649,7 @@ async def get_top_requesters(years: str = "2025"):
             label_segmen=("label_segmen", "first") # <-- ERROR: Kolom 'label_segmen' TIDAK ADA!
         )
         .reset_index()
-        .nlargest(5, "TotalPermintaan")
+        .nlargest(10, "TotalPermintaan")
     )
 
     top_requesters = []
@@ -819,7 +819,6 @@ def format_rupiah(value):
 # ✅ Endpoint 9: ChatBot Query (Dynamic & Smart)
 # =====================================================
 
-
 @app.get("/api/chatbot-query")
 async def chatbot_query(question: str):
     """
@@ -943,6 +942,7 @@ def format_rupiah(value):
         return f"Rp{(value / 1_000_000):.1f}jt"
     else:
         return f"Rp{value:,.0f}".replace(",", ".")
+    
 # === Endpoint: Daftar Semua Unit Pemohon dengan Segmen & Kategori ===
 
 

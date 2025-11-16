@@ -44,6 +44,17 @@ const getBlueGradientColor = (index, total) => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
+// === Helper: Warna oranye gradasi untuk Pengeluaran ===
+const getOrangeGradient = (index, total) => {
+  const dark = [124, 45, 18];   // #7c2d12 (oranye tua)
+  const light = [251, 218, 116]; // #fdba74 (oranye terang)
+  const ratio = index / Math.max(total - 1, 1);
+  const r = Math.round(dark[0] + (light[0] - dark[0]) * ratio);
+  const g = Math.round(dark[1] + (light[1] - dark[1]) * ratio);
+  const b = Math.round(dark[2] + (light[2] - dark[2]) * ratio);
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
 const UnitAnalysisPage = () => {
   // === Perbaikan 1: Default ke semua tahun ===
   const [selectedYears, setSelectedYears] = useState([2023, 2024, 2025]);
@@ -293,7 +304,9 @@ const UnitAnalysisPage = () => {
       {
         label: "Total Barang Diminta",
         data: topRequesters.map((item) => item.TotalPermintaan),
-        backgroundColor: "#3b82f6",
+        backgroundColor: topRequesters.map((_, i) =>
+          getOrangeGradient(i, topRequesters.length)
+        ),
       },
     ],
   };
@@ -434,7 +447,7 @@ const UnitAnalysisPage = () => {
       >
         <div className="chart-card">
           <h3 className="chart-title">
-            Top 5 Unit Pemohon (
+            Top 10 Unit Pemohon (
             {selectedYears.length === ALL_YEARS.length
               ? "Semua Tahun"
               : selectedYears.join(", ")}
