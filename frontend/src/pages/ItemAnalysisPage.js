@@ -32,9 +32,10 @@ const ItemAnalysisPage = () => {
 
   // Format Rupiah
   const formatRupiah = (value) => {
-    if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(1)}M`;
+    if (value >= 1_000_000_000)
+      return `Rp ${(value / 1_000_000_000).toFixed(1)}M`;
     if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)}jt`;
-    return `Rp ${Math.round(value).toLocaleString('id-ID')}`;
+    return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
   };
 
   // === Toggle Tahun untuk Grafik ===
@@ -191,8 +192,8 @@ const ItemAnalysisPage = () => {
           : null
       });
     } catch (err) {
-      console.error('Gagal ambil detail unit:', err);
-      alert('Gagal memuat detail unit');
+      console.error("Gagal ambil detail unit:", err);
+      alert("Gagal memuat detail unit");
     }
   };
 
@@ -214,7 +215,7 @@ const ItemAnalysisPage = () => {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: (value) => `Rp ${value.toLocaleString('id-ID')}`,
+          callback: (value) => `Rp ${value.toLocaleString("id-ID")}`,
         },
       },
     },
@@ -223,7 +224,7 @@ const ItemAnalysisPage = () => {
   const barUnitOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    indexAxis: 'y',
+    indexAxis: "y",
     plugins: {
       legend: { display: false },
       tooltip: {
@@ -264,7 +265,8 @@ const ItemAnalysisPage = () => {
     <div className="page-content">
       <div className="analytics-header">
         <h1 className="page-title">
-          <i className="fas fa-boxes"></i> Analisis Barang - Distribusi Permintaan Kategori & Detail Barang
+          <i className="fas fa-boxes"></i> Analisis Barang - Distribusi
+          Permintaan Kategori & Detail Barang
         </h1>
         <div className="filter-section">
           {/* Filter untuk Grafik */}
@@ -304,7 +306,6 @@ const ItemAnalysisPage = () => {
           </select>
         </div>
       </div>
-
       <div className="charts-grid">
         <div className="chart-card">
           <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi ({selectedYearsForCharts.length === ALL_YEARS.length ? 'Semua Tahun' : selectedYearsForCharts.join(', ')})</h3>
@@ -312,7 +313,9 @@ const ItemAnalysisPage = () => {
             {categoryValueData.labels?.length > 0 ? (
               <Bar data={barValueData} options={barValueOptions} />
             ) : (
-              <div className="chart-placeholder">Tidak ada data nilai pengeluaran</div>
+              <div className="chart-placeholder">
+                Tidak ada data nilai pengeluaran
+              </div>
             )}
           </div>
         </div>
@@ -322,12 +325,13 @@ const ItemAnalysisPage = () => {
             {categoryUnitData.labels?.length > 0 ? (
               <Bar data={barUnitData} options={barUnitOptions} />
             ) : (
-              <div className="chart-placeholder">Tidak ada data volume unit</div>
+              <div className="chart-placeholder">
+                Tidak ada data volume unit
+              </div>
             )}
           </div>
         </div>
       </div>
-
       <div className="table-card">
         <h3 className="chart-title">Tabel Detail Semua Barang yang Diminta (Tahun {selectedYearForTable})</h3>
         <div className="search-bar">
@@ -369,7 +373,7 @@ const ItemAnalysisPage = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center' }}>
+                <td colSpan="5" style={{ textAlign: "center" }}>
                   Tidak ada data barang ditemukan
                 </td>
               </tr>
@@ -389,14 +393,15 @@ const ItemAnalysisPage = () => {
           </div>
         )}
       </div>
-
       {/* Modal Detail Unit */}
       {detailModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h4>Nama Barang: {detailModal.namaBarang}</h4>
-              <button className="close-btn" onClick={closeModal}>×</button>
+              <button className="close-btn" onClick={closeModal}>
+                ×
+              </button>
             </div>
             <div className="modal-body">
               <p><strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}</p>
@@ -424,12 +429,13 @@ const ItemAnalysisPage = () => {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={closeModal}>Tutup</button>
+              <button className="btn btn-secondary" onClick={closeModal}>
+                Tutup
+              </button>
             </div>
           </div>
         </div>
       )}
-
       <style jsx>{`
         .modal-overlay {
           position: fixed;
@@ -437,7 +443,7 @@ const ItemAnalysisPage = () => {
           left: 0;
           width: 100%;
           height: 100%;
-          background: rgba(0,0,0,0.5);
+          background: rgba(0, 0, 0, 0.5);
           display: flex;
           justify-content: center;
           align-items: center;

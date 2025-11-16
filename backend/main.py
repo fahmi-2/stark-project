@@ -19,10 +19,8 @@ app.add_middleware(
 # ====================
 # ✅ Load & Clean Data
 # ====================
-# ====================
-# ✅ Load & Clean Data
-# ====================
-csv_path = "D:\\SEMESTER 5\\WORKSHOP ANALITIKA DATA TERAPAN\\Dataset\\Data_SPC.csv"
+
+csv_path = "./data/Data_SPC.csv"
 
 df = pd.read_csv(csv_path)
 
@@ -55,15 +53,18 @@ df = df.dropna(subset=["Tahun"])  # hapus baris tanpa tahun
 df["Tanggal"] = pd.to_datetime(df["Tanggal"], dayfirst=True, errors="coerce")
 
 # Validasi kolom penting
-required_cols = ["Jumlah", "TotalHarga", "UnitPemohon", "NamaBrg", "Kategori", "Tahun"]
+required_cols = ["Jumlah", "TotalHarga",
+                 "UnitPemohon", "NamaBrg", "Kategori", "Tahun"]
 for col in required_cols:
     if col not in df.columns:
         raise ValueError(f"Kolom '{col}' tidak ditemukan di data CSV!")
+
+
 def parse_years_param(years_param: str):
     if not years_param or years_param.lower() == "all":
         # Ambil SEMUA tahun unik dari dataset
         return sorted(df["Tahun"].dropna().unique().astype(int).tolist())
-    
+
     try:
         return sorted(set(int(y.strip()) for y in years_param.split(",") if y.strip().isdigit()))
     except:
@@ -71,6 +72,8 @@ def parse_years_param(years_param: str):
 # =====================================================
 # ✅ Endpoint 1: Ringkasan Keseluruhan Semua Data
 # =====================================================
+
+
 @app.get("/api/data")
 async def get_all_data():
     """
@@ -88,7 +91,8 @@ async def get_all_data():
         data.groupby(["Kategori", "NamaBrg"])
         .agg(
             TotalPermintaan=("Jumlah", "sum"),
-            TopRequester=("UnitPemohon", lambda x: x.mode().iloc[0] if not x.mode().empty else "N/A")
+            TopRequester=("UnitPemohon", lambda x: x.mode(
+            ).iloc[0] if not x.mode().empty else "N/A")
         )
         .reset_index()
         .nlargest(5, "TotalPermintaan")
@@ -117,6 +121,8 @@ async def get_all_data():
 # =====================================================
 # ✅ Endpoint 2: Ringkasan & Top 5 Barang per Tahun
 # =====================================================
+
+
 @app.get("/api/data-per-tahun")
 async def get_data_per_tahun():
     """
@@ -138,7 +144,8 @@ async def get_data_per_tahun():
             data_tahun.groupby(["Kategori", "NamaBrg"])
             .agg(
                 TotalPermintaan=("Jumlah", "sum"),
-                TopRequester=("UnitPemohon", lambda x: x.mode().iloc[0] if not x.mode().empty else "N/A")
+                TopRequester=("UnitPemohon", lambda x: x.mode(
+                ).iloc[0] if not x.mode().empty else "N/A")
             )
             .reset_index()
             .nlargest(5, "TotalPermintaan")
@@ -168,6 +175,8 @@ async def get_data_per_tahun():
 # =====================================================
 # ✅ Root Endpoint
 # =====================================================
+
+
 @app.get("/")
 async def root():
     return {
@@ -180,6 +189,8 @@ async def root():
 # =====================================================
 # ✅ Endpoint 3: Dashboard Metrics (Aman untuk JSON)
 # =====================================================
+
+
 @app.get("/api/dashboard-metrics")
 async def get_dashboard_metrics(years: str = "2025"):
     try:
@@ -225,13 +236,15 @@ async def get_dashboard_metrics(years: str = "2025"):
             prev_year = target_year - 1
 
             prev_data = df[df["Tahun"] == prev_year]
-            prev_requests = int(prev_data["Jumlah"].sum()) if not prev_data.empty else 0
+            prev_requests = int(
+                prev_data["Jumlah"].sum()) if not prev_data.empty else 0
 
             # Contoh untuk totalRequests
             if prev_requests == 0:
                 change_text = "Data tahun lalu tidak ada"
             else:
-                change_pct = round(((total_requests - prev_requests) / prev_requests) * 100, 1)
+                change_pct = round(
+                    ((total_requests - prev_requests) / prev_requests) * 100, 1)
                 sign = "↑" if change_pct > 0 else "↓"
                 change_text = f"{sign} {abs(change_pct):.1f}% vs Tahun Lalu"
                 is_positive = change_pct > 0
@@ -296,7 +309,8 @@ async def get_monthly_demand(years: str = "2025"):
         if data.empty:
             return {"monthlyDemand": [0] * 12}
 
-        data["Tanggal"] = pd.to_datetime(data["Tanggal"], dayfirst=True, errors="coerce")
+        data["Tanggal"] = pd.to_datetime(
+            data["Tanggal"], dayfirst=True, errors="coerce")
         data = data.dropna(subset=["Tanggal"])
         data["Bulan"] = data["Tanggal"].dt.month
 
@@ -312,7 +326,8 @@ async def get_monthly_demand(years: str = "2025"):
     except Exception as e:
         print(f"[ERROR] Monthly Demand ({years}): {e}")
         return {"monthlyDemand": [0] * 12}
-    
+
+
 @app.get("/api/monthly-outcome/{year}")
 async def get_monthly_outcome(year: int):
     try:
@@ -320,7 +335,8 @@ async def get_monthly_outcome(year: int):
         temp_df = df.copy()
 
         # 1. Parse Tanggal dengan benar (format: DD/MM/YYYY)
-        temp_df["Tanggal"] = pd.to_datetime(temp_df["Tanggal"], dayfirst=True, errors="coerce")
+        temp_df["Tanggal"] = pd.to_datetime(
+            temp_df["Tanggal"], dayfirst=True, errors="coerce")
         temp_df = temp_df.dropna(subset=["Tanggal"])
 
         # 2. Ekstrak Tahun dan Bulan dari Tanggal (lebih akurat)
@@ -342,7 +358,8 @@ async def get_monthly_outcome(year: int):
 
         # 6. Agregasi total pengeluaran per bulan (1–12)
         monthly_sum = data.groupby("Bulan")["Total"].sum()
-        full_year = monthly_sum.reindex(range(1, 13), fill_value=0).sort_index()
+        full_year = monthly_sum.reindex(
+            range(1, 13), fill_value=0).sort_index()
 
         # 7. Konversi ke integer (pembulatan ke Rupiah terdekat)
         result = [int(round(x)) for x in full_year.tolist()]
@@ -391,7 +408,8 @@ async def get_category_and_top_items(years: str = "2025"):
             data.groupby(["Kategori", "NamaBrg", "label_segmen"])
             .agg(
                 TotalPermintaan=("Jumlah", "sum"),
-                TopRequester=("UnitPemohon", lambda x: x.mode().iloc[0] if not x.mode().empty else "N/A")
+                TopRequester=("UnitPemohon", lambda x: x.mode(
+                ).iloc[0] if not x.mode().empty else "N/A")
             )
             .reset_index()
             .nlargest(5, "TotalPermintaan")
@@ -425,6 +443,8 @@ async def get_category_and_top_items(years: str = "2025"):
     # =====================================================
 # ✅ Endpoint 6: Dashboard Metrics per Tahun
 # =====================================================
+
+
 @app.get("/api/dashboard-metrics/{year}")
 async def get_dashboard_metrics_by_year(year: int):
     try:
@@ -441,16 +461,24 @@ async def get_dashboard_metrics_by_year(year: int):
         previous_data = df[df["Tahun"] == previous_year]
 
         # Hitung metrik tahun ini
-        total_requests_current = int(current_data["Jumlah"].sum()) if not current_data.empty else 0
-        outflow_value_current = float(current_data["TotalHarga"].sum()) if not current_data.empty else 0.0
-        unique_requesters_current = int(current_data["UnitPemohon"].nunique()) if not current_data.empty else 0
-        unique_skus_current = int(current_data["NamaBrg"].nunique()) if not current_data.empty else 0
+        total_requests_current = int(
+            current_data["Jumlah"].sum()) if not current_data.empty else 0
+        outflow_value_current = float(
+            current_data["TotalHarga"].sum()) if not current_data.empty else 0.0
+        unique_requesters_current = int(
+            current_data["UnitPemohon"].nunique()) if not current_data.empty else 0
+        unique_skus_current = int(
+            current_data["NamaBrg"].nunique()) if not current_data.empty else 0
 
         # Hitung metrik tahun lalu
-        total_requests_prev = int(previous_data["Jumlah"].sum()) if not previous_data.empty else 0
-        outflow_value_prev = float(previous_data["TotalHarga"].sum()) if not previous_data.empty else 0.0
-        unique_requesters_prev = int(previous_data["UnitPemohon"].nunique()) if not previous_data.empty else 0
-        unique_skus_prev = int(previous_data["NamaBrg"].nunique()) if not previous_data.empty else 0
+        total_requests_prev = int(
+            previous_data["Jumlah"].sum()) if not previous_data.empty else 0
+        outflow_value_prev = float(
+            previous_data["TotalHarga"].sum()) if not previous_data.empty else 0.0
+        unique_requesters_prev = int(
+            previous_data["UnitPemohon"].nunique()) if not previous_data.empty else 0
+        unique_skus_prev = int(
+            previous_data["NamaBrg"].nunique()) if not previous_data.empty else 0
 
         # Helper
         def calc_change(curr, prev):
@@ -503,6 +531,8 @@ async def get_dashboard_metrics_by_year(year: int):
     # =====================================================
 # ✅ Endpoint 7: Top 5 Unit Pemohon per Tahun
 # =====================================================
+
+
 @app.get("/api/top-requesters")
 async def get_top_requesters(years: str = "2025"):
     selected_years = parse_years_param(years)
@@ -539,6 +569,8 @@ async def get_top_requesters(years: str = "2025"):
 # =====================================================
 # ✅ Endpoint Baru: Kategori Berdasarkan Jumlah Unit (bukan nilai uang)
 # =====================================================
+
+
 @app.get("/api/category-value/{year}")
 async def get_category_value(year: int):
     try:
@@ -559,6 +591,8 @@ async def get_category_value(year: int):
     except Exception as e:
         print(f"[ERROR] Category Value: {e}")
         return {"labels": [], "data": []}
+
+
 @app.get("/api/category-unit/{year}")
 async def get_category_unit(year: int):
     try:
@@ -579,6 +613,8 @@ async def get_category_unit(year: int):
     except Exception as e:
         print(f"[ERROR] Category Unit: {e}")
         return {"labels": [], "data": []}
+
+
 @app.get("/api/all-items/{year}")
 async def get_all_items(year: int):
     try:
@@ -597,7 +633,8 @@ async def get_all_items(year: int):
         )
 
         # Hitung HargaSatuan rata-rata
-        item_agg["HargaSatuan"] = item_agg["TotalHarga"] / item_agg["TotalPermintaan"]
+        item_agg["HargaSatuan"] = item_agg["TotalHarga"] / \
+            item_agg["TotalPermintaan"]
         item_agg["HargaSatuan"] = item_agg["HargaSatuan"].fillna(0).round(2)
 
         # Urutkan berdasarkan TotalPermintaan
@@ -620,6 +657,7 @@ async def get_all_items(year: int):
         traceback.print_exc()
         return {"items": []}
 
+
 @app.get("/api/item-detail/{year}/{item_name}")
 async def get_item_detail_by_name(year: int, item_name: str):
     try:
@@ -630,7 +668,7 @@ async def get_item_detail_by_name(year: int, item_name: str):
 
         # Filter data berdasarkan tahun dan nama barang
         filtered = df[
-            (df["Tahun"] == year) & 
+            (df["Tahun"] == year) &
             (df["NamaBrg"] == decoded_item)
         ]
 
@@ -642,7 +680,8 @@ async def get_item_detail_by_name(year: int, item_name: str):
             filtered.groupby("UnitPemohon")
             .agg(
                 Jumlah=("Jumlah", "sum"),
-                TotalPengeluaran=("TotalHarga", "sum")  # ✅ LANGSUNG dari kolom TotalHarga
+                # ✅ LANGSUNG dari kolom TotalHarga
+                TotalPengeluaran=("TotalHarga", "sum")
             )
             .reset_index()
             .sort_values("Jumlah", ascending=False)
@@ -653,7 +692,8 @@ async def get_item_detail_by_name(year: int, item_name: str):
             units.append({
                 "UnitPemohon": row["UnitPemohon"],
                 "Jumlah": int(row["Jumlah"]),
-                "TotalPengeluaran": float(row["TotalPengeluaran"])  # ✅ Nilai sebenarnya
+                # ✅ Nilai sebenarnya
+                "TotalPengeluaran": float(row["TotalPengeluaran"])
             })
 
         return {"units": units}
@@ -668,6 +708,8 @@ async def get_item_detail_by_name(year: int, item_name: str):
 # ✅ Endpoint 9: ChatBot Query (Dynamic)
 # =====================================================
 # Helper: Format Rupiah
+
+
 def format_rupiah(value):
     if value >= 1_000_000_000:
         return f"Rp{(value / 1_000_000_000):.1f}M"
@@ -679,6 +721,8 @@ def format_rupiah(value):
 # =====================================================
 # ✅ Endpoint 9: ChatBot Query (Dynamic & Smart)
 # =====================================================
+
+
 @app.get("/api/chatbot-query")
 async def chatbot_query(question: str):
     """
@@ -767,10 +811,12 @@ async def chatbot_query(question: str):
 
         # 6. Tren Bulanan (Januari - Desember)
         elif "tren bulanan" in lower_q:
-            data["Tanggal"] = pd.to_datetime(data["Tanggal"], dayfirst=True, errors="coerce")
+            data["Tanggal"] = pd.to_datetime(
+                data["Tanggal"], dayfirst=True, errors="coerce")
             data = data.dropna(subset=["Tanggal"])
             data["Bulan"] = data["Tanggal"].dt.month
-            monthly = data.groupby("Bulan")["Jumlah"].sum().reindex(range(1,13), fill_value=0)
+            monthly = data.groupby("Bulan")["Jumlah"].sum().reindex(
+                range(1, 13), fill_value=0)
             trend = [int(x) for x in monthly.tolist()]
             return {"answer": f"Tren pengeluaran bulanan {year_label}: {trend}"}
 
@@ -791,6 +837,8 @@ async def chatbot_query(question: str):
     except Exception as e:
         print(f"[ERROR] ChatBot Query: {e}")
         return {"answer": "Maaf, terjadi kesalahan saat memproses pertanyaan Anda."}
+
+
 def format_rupiah(value):
     if value >= 1_000_000_000:
         return f"Rp{(value / 1_000_000_000):.1f}M"
@@ -799,6 +847,8 @@ def format_rupiah(value):
     else:
         return f"Rp{value:,.0f}".replace(",", ".")
 # === Endpoint: Daftar Semua Unit Pemohon dengan Segmen & Kategori ===
+
+
 @app.get("/api/unit-pemohon-list")
 async def get_unit_pemohon_list():
     try:
@@ -870,12 +920,15 @@ async def get_unit_item_monthly(unit: str, year: int):
         if data.empty:
             return {"items": []}
 
-        data["Tanggal"] = pd.to_datetime(data["Tanggal"], dayfirst=True, errors="coerce")
+        data["Tanggal"] = pd.to_datetime(
+            data["Tanggal"], dayfirst=True, errors="coerce")
         data = data.dropna(subset=["Tanggal"])
         data["Bulan"] = data["Tanggal"].dt.month
 
-        monthly_agg = data.groupby(["NamaBrg", "Bulan"])["Jumlah"].sum().reset_index()
-        pivot = monthly_agg.pivot(index="NamaBrg", columns="Bulan", values="Jumlah").fillna(0)
+        monthly_agg = data.groupby(["NamaBrg", "Bulan"])[
+            "Jumlah"].sum().reset_index()
+        pivot = monthly_agg.pivot(
+            index="NamaBrg", columns="Bulan", values="Jumlah").fillna(0)
 
         for bulan in range(1, 13):
             if bulan not in pivot.columns:
@@ -884,7 +937,8 @@ async def get_unit_item_monthly(unit: str, year: int):
 
         items = []
         for nama_brg in pivot.index:
-            bulan_data = [int(pivot.loc[nama_brg, bulan]) for bulan in range(1, 13)]
+            bulan_data = [int(pivot.loc[nama_brg, bulan])
+                          for bulan in range(1, 13)]
             total = sum(bulan_data)
             items.append({
                 "NamaBarang": nama_brg,
@@ -900,6 +954,8 @@ async def get_unit_item_monthly(unit: str, year: int):
         return {"items": []}
 # === Endpoint: Data untuk Scatter Plot (semua unit) ===
 # === Endpoint: Data untuk Scatter Plot (semua unit) DENGAN FILTER TAHUN ===
+
+
 @app.get("/api/unit-scatter-data")
 async def get_unit_scatter_data(years: str = "all"):
     try:
@@ -985,14 +1041,17 @@ async def get_data_radar(unit: str):
         all_units = df.groupby("UnitPemohon").agg(
             TotalPermintaan=("Jumlah", "sum"),
             TotalPengeluaran=("TotalHarga", "sum"),
-            RataHarga=("TotalHarga", lambda x: x.sum() / df.loc[x.index, "Jumlah"].sum() if x.sum() > 0 else 0),
-            Efisiensi=("Jumlah", lambda x: x.sum() / len(x) if len(x) > 0 else 0),
+            RataHarga=("TotalHarga", lambda x: x.sum() /
+                       df.loc[x.index, "Jumlah"].sum() if x.sum() > 0 else 0),
+            Efisiensi=("Jumlah", lambda x: x.sum() /
+                       len(x) if len(x) > 0 else 0),
             Keragaman=("Kategori", "nunique")
         ).dropna()
 
         # Tambahkan Frekuensi ke all_units
         freq_series = df.groupby("UnitPemohon").apply(
-            lambda x: x["Jumlah"].sum() / len(x["Tanggal"].dt.to_period("M").unique())
+            lambda x: x["Jumlah"].sum() /
+            len(x["Tanggal"].dt.to_period("M").unique())
             if x["Tanggal"].notna().any() else 0
         )
         all_units["Frekuensi"] = freq_series
@@ -1022,7 +1081,8 @@ async def get_data_radar(unit: str):
 
         # --- Segmen Keuangan → skor 0–10 ---
         pengeluaran_vals = all_units["TotalPengeluaran"]
-        e33, e66 = pengeluaran_vals.quantile(0.33), pengeluaran_vals.quantile(0.66)
+        e33, e66 = pengeluaran_vals.quantile(
+            0.33), pengeluaran_vals.quantile(0.66)
         if total_pengeluaran >= e66:
             segmen_skor = 10.0
             segmen_label = "Tinggi"
@@ -1072,6 +1132,8 @@ async def get_data_radar(unit: str):
             "description": "Gagal menghitung",
             "raw": {}
         }
+
+
 @app.get("/api/monthly-expenditure")
 async def get_monthly_expenditure(years: str = "2025"):
     """
@@ -1091,12 +1153,14 @@ async def get_monthly_expenditure(years: str = "2025"):
             return {"monthlyExpenditure": [0] * 12}
 
         # Parse tanggal
-        data["Tanggal"] = pd.to_datetime(data["Tanggal"], dayfirst=True, errors="coerce")
+        data["Tanggal"] = pd.to_datetime(
+            data["Tanggal"], dayfirst=True, errors="coerce")
         data = data.dropna(subset=["Tanggal"])
         data["Bulan"] = data["Tanggal"].dt.month
 
         # Gunakan TotalHarga sebagai nilai
-        data["TotalHarga"] = pd.to_numeric(data["TotalHarga"], errors="coerce").fillna(0)
+        data["TotalHarga"] = pd.to_numeric(
+            data["TotalHarga"], errors="coerce").fillna(0)
 
         # Jumlahkan per bulan (Jan–Des)
         monthly = (
@@ -1111,6 +1175,8 @@ async def get_monthly_expenditure(years: str = "2025"):
     except Exception as e:
         print(f"[ERROR] Monthly Expenditure ({years}): {e}")
         return {"monthlyExpenditure": [0] * 12}
+
+
 @app.get("/api/dashboard-metrics")
 async def get_dashboard_metrics(years: str = "2025"):
     try:
@@ -1146,6 +1212,8 @@ async def get_dashboard_metrics(years: str = "2025"):
     except Exception as e:
         print(f"[ERROR] Dashboard Metrics ({years}): {e}")
         return {"error": "Internal Server Error"}
+
+
 @app.get("/api/top-spending-units")
 async def get_top_spending_units(years: str = "2025"):
     try:
@@ -1169,7 +1237,7 @@ async def get_top_spending_units(years: str = "2025"):
             # Ambil segmen dari dataset asli
             segmen_row = df[df["UnitPemohon"] == row["UnitPemohon"]]["segmen"]
             segmen = segmen_row.iloc[0] if not segmen_row.empty else "Tidak Diketahui"
-            
+
             result.append({
                 "UnitPemohon": row["UnitPemohon"],
                 "TotalPengeluaran": float(row["TotalPengeluaran"]),
@@ -1181,6 +1249,8 @@ async def get_top_spending_units(years: str = "2025"):
     except Exception as e:
         print(f"[ERROR] Top Spending Units: {e}")
         return {"topSpendingUnits": []}
+
+
 @app.get("/api/category-demand-proportion")
 async def get_category_demand_proportion(years: str = "2025"):
     """
@@ -1208,7 +1278,8 @@ async def get_category_demand_proportion(years: str = "2025"):
 
         return {
             "labels": category_agg["Kategori"].tolist(),
-            "data": [int(x) for x in category_agg["Jumlah"].tolist()]  # pastikan integer
+            # pastikan integer
+            "data": [int(x) for x in category_agg["Jumlah"].tolist()]
         }
 
     except Exception as e:
