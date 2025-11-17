@@ -6,7 +6,8 @@ import HomePage from './pages/HomePage';
 import UnitAnalysisPage from './pages/UnitAnalysisPage';
 import ItemAnalysisPage from './pages/ItemAnalysisPage';
 import ChatBotPage from './pages/ChatBotPage';
-import AboutPage from './pages/AboutPage'; // ✅ Pastikan ini ada
+import AboutPage from './pages/AboutPage';
+import DataManagementPage from './pages/DataManagementPage'; // ✅ Sudah diimport
 
 const App = () => {
   const [activePage, setActivePage] = useState('home');
@@ -24,13 +25,12 @@ const App = () => {
         return <UnitAnalysisPage {...props} />;
       case 'item-analysis':
         return <ItemAnalysisPage {...props} />;
-  
-      
       case 'chatbot':
         return <ChatBotPage />;
       case 'about':
-        return <AboutPage />; // ✅ Gunakan halaman ini
-      // ... sisa halaman lainnya
+        return <AboutPage />;
+      case 'data-management': // ✅ TAMBAHKAN INI
+        return <DataManagementPage />;
       default:
         return <HomePage {...props} />;
     }

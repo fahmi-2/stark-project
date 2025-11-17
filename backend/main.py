@@ -3,6 +3,71 @@ import pandas as pd
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import unquote
 from typing import List, Optional
+import httpx
+from fastapi import FastAPI, Query
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# --- CONFIGURASI OPENROUTER ---
+OPENROUTER_API_KEY = "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"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+class ChatRequest(BaseModel):
+    question: str
+# --- DATA DUMMY (GANTI DENGAN FUNGSI NYATA ANDA) ---
+# Contoh: ambil dari df atau database
+def get_dashboard_data(year="2025"):
+    """Ambil data aktual dari df"""
+    # Filter data berdasarkan tahun
+    data = df[df["Tahun"] == int(year)].copy()
+    if data.empty:
+        return {
+            "total_requests": 0,
+            "total_expenditure": 0,
+            "top_units": [],
+            "top_items": [],
+            "categories": {}
+        }
+
+    total_requests = int(data["Jumlah"].sum())
+    total_expenditure = float(data["TotalHarga"].sum())
+
+    # Top 3 Unit Pemohon
+    top_units = (
+        data.groupby("UnitPemohon")
+        .agg(TotalPengeluaran=("TotalHarga", "sum"))
+        .reset_index()
+        .nlargest(3, "TotalPengeluaran")
+        .to_dict("records")
+    )
+
+    # Top 3 Barang
+    top_items = (
+        data.groupby("NamaBrg")
+        .agg(Jumlah=("Jumlah", "sum"))
+        .reset_index()
+        .nlargest(3, "Jumlah")
+        .to_dict("records")
+    )
+
+    # Kategori
+    categories = (
+        data.groupby("Kategori")
+        .agg(TotalHarga=("TotalHarga", "sum"))
+        .reset_index()
+        .set_index("Kategori")["TotalHarga"]
+        .to_dict()
+    )
+
+    return {
+        "total_requests": total_requests,
+        "total_expenditure": total_expenditure,
+        "top_units": top_units,
+        "top_items": top_items,
+        "categories": categories
+    }
+
+
 
 # ====================
 # ✅ Setup Aplikasi
@@ -566,7 +631,7 @@ async def get_top_requesters(years: str = "2025"):
             label_segmen=("label_segmen", "first")
         )
         .reset_index()
-        .nlargest(5, "TotalPermintaan")
+        .nlargest(10, "TotalPermintaan")
     )
 
     top_requesters = []
@@ -1228,11 +1293,26 @@ async def get_dashboard_metrics(years: str = "2025"):
         return {"error": "Internal Server Error"}
 
 
+import math
+import pandas as pd
+
+def safe_float(value):
+    if pd.isna(value) or (isinstance(value, float) and math.isnan(value)):
+        return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
 @app.get("/api/top-spending-units")
 async def get_top_spending_units(years: str = "2025"):
     try:
         selected_years = parse_years_param(years)
         data = df[df["Tahun"].isin(selected_years)].copy()
+
+        # Pastikan TotalHarga bersih dari NaN
+        data["TotalHarga"] = pd.to_numeric(data["TotalHarga"], errors='coerce').fillna(0)
+
         if data.empty:
             return {"topSpendingUnits": []}
 
@@ -1250,7 +1330,7 @@ async def get_top_spending_units(years: str = "2025"):
         for _, row in top_units.iterrows():
             # Ambil segmen dari dataset asli
             segmen_row = df[df["UnitPemohon"] == row["UnitPemohon"]]["segmen"]
-            segmen = segmen_row.iloc[0] if not segmen_row.empty else "Tidak Diketahui"
+            segmen = segmen_row.iloc[0] if not segmen_row.empty and not pd.isna(segmen_row.iloc[0]) else "Tidak Diketahui"
 
             result.append({
                 "UnitPemohon": row["UnitPemohon"],
@@ -1303,3 +1383,71 @@ async def get_category_demand_proportion(years: str = "2025"):
         import traceback
         traceback.print_exc()
         return {"labels": [], "data": []}
+@app.post("/api/chatbot-ai")
+async def chatbot_ai(request: ChatRequest):
+    try:
+        # ✅ 1. Ambil data aktual dari sistem Anda
+        data = get_dashboard_data("2025")  # Ganti dengan year dinamis jika perlu
+
+        # ✅ 2. Siapkan konteks untuk LLM
+        context = f"""
+Data Dashboard (Tahun 2025):
+- Total Permintaan: {data['total_requests']} unit
+- Nilai Pengeluaran: Rp {data['total_expenditure']:,.0f}
+- Unit Pemohon Teratas: {', '.join([f"{u['UnitPemohon']} (Rp {u['TotalPengeluaran']:,})" for u in data['top_units'][:3]])}
+- Barang Terlaris: {', '.join([f"{i['NamaBrg']} ({i['Jumlah']} unit)" for i in data['top_items'][:3]])}
+- Kategori Terbesar: {', '.join([f"{k} (Rp {v:,})" for k, v in data['categories'].items()])}
+"""
+
+        # ✅ 3. Kirim ke OpenRouter
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "model": "openai/gpt-4o",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": """
+Anda adalah Asisten Analitik Permintaan yang sangat cerdas. Jawab dalam bahasa Indonesia formal dan ringkas.
+
+Aturan:
+1. Gunakan data aktual yang diberikan.
+2. Jika data tidak tersedia, katakan: "Maaf, data untuk itu tidak tersedia."
+3. Format angka: 1.000, 1.000.000, Rp 1,5jt.
+4. Jangan sebut "berdasarkan data", langsung berikan insight.
+5. Untuk pertanyaan seperti "berapa total", jawab langsung angkanya.
+6. Untuk "unit mana", sebutkan nama unit dan nilai.
+
+Contoh:
+Q: "Barang apa paling sering diminta?" → A: "Barang paling sering diminta adalah 'pulpen', dengan 1.040 unit."
+
+Q: "Unit mana paling boros?" → A: "Unit IT adalah unit dengan pengeluaran tertinggi, mencapai Rp 452jt."
+"""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"{context}\n\nPertanyaan: {request.question}"
+                    }
+                ],
+                "temperature": 0.3,
+                "max_tokens": 500
+            }
+
+            headers = {
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost:3000",
+                "X-Title": "Dashboard Analitik"
+            }
+
+            response = await client.post(OPENROUTER_URL, json=payload, headers=headers)
+            result = response.json()
+
+            if response.status_code != 200:
+                raise Exception(f"OpenRouter error: {result}")
+
+            answer = result["choices"][0]["message"]["content"].strip()
+            return {"answer": answer}
+
+    except Exception as e:
+        print(f"[CHATBOT AI ERROR] {e}")
+        return {"answer": "Maaf, saya sedang mengalami gangguan. Silakan coba lagi nanti."}

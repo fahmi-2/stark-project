@@ -441,48 +441,37 @@ const HomePage = () => {
     return <div className="page-content">Tidak ada data.</div>;
   }
 
-  return (
-    <div className="page-content">
-      <div className="dashboard-header">
-        <h1>Dashboard Permintaan & Pengeluaran</h1>
-        <div className="filter-section">
-          <span className="filter-label">Tahun:</span>
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <label
-              style={{ display: "flex", alignItems: "center", gap: "6px" }}
-            >
-              <input
-                type="checkbox"
-                checked={selectedYears.length === ALL_YEARS.length}
-                onChange={toggleAllYears}
-              />
-              <span>Semua Tahun</span>
-            </label>
-            {ALL_YEARS.map((year) => (
-              <label
-                key={year}
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedYears.includes(year)}
-                  onChange={() => toggleYear(year)}
-                />
-                <span>{year}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
+return (
+  <div className="page-content">
+    <div className="dashboard-header">
+      <h1>Dashboard Permintaan & Pengeluaran</h1>
+      <div className="filter-section">
+  <span className="filter-label">Tahun :</span>
+  <div className="year-chips" role="tablist" aria-label="Pilih tahun untuk grafik">
+    <button
+      type="button"
+      className={`year-pill ${selectedYears.length === ALL_YEARS.length ? "active" : ""}`}
+      onClick={toggleAllYears}
+      aria-pressed={selectedYears.length === ALL_YEARS.length}
+    >
+      Semua
+    </button>
+    {ALL_YEARS.map((year) => (
+      <button
+        key={`chart-${year}`}
+        type="button"
+        className={`year-pill ${selectedYears.includes(year) ? "active" : ""}`}
+        onClick={() => toggleYear(year)}
+        aria-pressed={selectedYears.includes(year)}
+      >
+        {year}
+      </button>
+    ))}
+  </div>
+</div>
+    </div>
 
-      <div className="stats-grid">
+    <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-header">
             <span className="stat-title">Total Permintaan</span>

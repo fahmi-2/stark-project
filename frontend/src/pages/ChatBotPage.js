@@ -12,6 +12,7 @@ const ChatBotPage = () => {
   const [inputValue, setInputValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const messagesEndRef = useRef(null);
+  const [isBotTyping, setIsBotTyping] = useState(false);
 
   // Scroll ke bawah saat ada pesan baru
   const scrollToBottom = () => {
@@ -28,13 +29,19 @@ const ChatBotPage = () => {
     if (text.trim() === "") return;
 
     // Tambahkan pesan user
-    setMessages((prev) => [...prev, { sender: "user", text: text }]);
+    setMessages((prev) => [...prev, { sender: "user", text }]);
+    setInputValue("");
+    setShowSuggestions(false);
+    setIsBotTyping(true);
 
-    // Kirim ke backend
     try {
-      const response = await fetchAPI(
-        `/api/chatbot-query?question=${encodeURIComponent(text)}`
-      );
+      // ✅ KIRIM KE ENDPOINT BARU — POST dengan body JSON
+      const response = await fetchAPI("/api/chatbot-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: { question: text },
+      });
+
       const data = await response.json();
 
       // Tampilkan respons bot
@@ -48,11 +55,9 @@ const ChatBotPage = () => {
           text: "Maaf, terjadi kesalahan saat memproses pertanyaan Anda.",
         },
       ]);
+    } finally {
+      setIsBotTyping(false);
     }
-
-    // Kosongkan input & sembunyikan saran
-    setInputValue("");
-    setShowSuggestions(false);
   };
 
   // Fungsi untuk menangani Enter
@@ -62,7 +67,7 @@ const ChatBotPage = () => {
     }
   };
 
-  // Daftar pertanyaan saran (diperbarui)
+  // Daftar pertanyaan saran
   const suggestions = [
     "Berapa total permintaan unit tahun 2025?",
     "Total permintaan semua tahun (2023–2025)?",
@@ -88,6 +93,11 @@ const ChatBotPage = () => {
               <div className="message-bubble">{msg.text}</div>
             </div>
           ))}
+          {isBotTyping && (
+            <div className="message bot-message">
+              <div className="message-bubble">Bot sedang mengetik...</div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         <div className="chat-input">
@@ -115,7 +125,19 @@ const ChatBotPage = () => {
           >
             <i className="fas fa-lightbulb"></i> Saran
           </button>
-          <button id="sendChat" onClick={handleSendMessage}>
+          <button
+            id="sendChat"
+            onClick={handleSendMessage}
+            disabled={!inputValue.trim()}
+            style={{
+              backgroundColor: !inputValue.trim() ? "#ccc" : "#3b82f6",
+              color: "white",
+              border: "none",
+              padding: "10px 12px",
+              borderRadius: "20px",
+              cursor: !inputValue.trim() ? "not-allowed" : "pointer",
+            }}
+          >
             <i className="fas fa-paper-plane"></i> Kirim
           </button>
         </div>
