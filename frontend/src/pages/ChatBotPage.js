@@ -5,14 +5,46 @@ const ChatBotPage = () => {
   const [messages, setMessages] = useState([
     {
       sender: "bot",
-      text: 'Halo! 👋 Saya adalah Asisten Analitik Permintaan Anda. Tanyakan tentang pengeluaran, tren permintaan, atau barang terlaris. Contoh: "Berapa total permintaan unit di tahun 2024?"',
+      text: 'Halo! 👋 Saya adalah Jarvis Bot Asisten Analitik Permintaan STARK. Tanyakan tentang sistem, data permintaan, tren, atau barang terlaris. Contoh: "Apa itu STARK?" atau "Berapa total permintaan unit di tahun 2024?"',
     },
   ]);
   const [inputValue, setInputValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("data"); // 'data' atau 'sistem'
   const messagesEndRef = useRef(null);
-  const [isBotTyping, setIsBotTyping] = useState(false);
+  const [isBotTyping, setIsBotTyping] = useState(150);
 
+  const TypingMessage = ({ fullText, speed = 150, onComplete }) => {
+    const [displayed, setDisplayed] = useState("");
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+      mountedRef.current = true;
+      let i = 0;
+      const interval = setInterval(() => {
+        if (!mountedRef.current) return;
+        i += 1;
+        setDisplayed(fullText.slice(0, i));
+        if (i >= fullText.length) {
+          clearInterval(interval);
+          if (onComplete) onComplete();
+        }
+      }, speed);
+      return () => {
+        mountedRef.current = false;
+        clearInterval(interval);
+      };
+    }, [fullText, speed, onComplete]);
+
+    return (
+      <span className="typing-text">
+        {displayed}
+        <span className="cursor">&nbsp;|</span>
+      </span>
+    );
+  };
+
+  // Scroll ke bawah saat ada pesan baru
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -21,10 +53,12 @@ const ChatBotPage = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Fungsi untuk mengirim pesan
   const handleSendMessage = async (question = null) => {
     const text = question || inputValue;
     if (text.trim() === "") return;
 
+    // Tambahkan pesan user
     setMessages((prev) => [...prev, { sender: "user", text }]);
     setInputValue("");
     setShowSuggestions(false);
@@ -42,9 +76,14 @@ const ChatBotPage = () => {
       }
 
       const data = await response.json();
+      console.log("Response dari backend:", data);
+
+      // Tampilkan respons bot dengan efek ketik (cursor writing)
+      const formattedAnswer = data.answer || "Tidak ada respons dari server.";
+      // Tambahkan pesan bot yang dalam mode 'isTyping' — TypingMessage akan menyelesaikannya
       setMessages((prev) => [
         ...prev,
-        { sender: "bot", text: data.answer || "Tidak ada respons dari server." },
+        { sender: "bot", text: "", isTyping: true, fullText: formattedAnswer, id: Date.now() },
       ]);
     } catch (err) {
       console.error("Error:", err);
@@ -55,11 +94,11 @@ const ChatBotPage = () => {
           text: `Maaf, terjadi kesalahan: ${err.message}. Pastikan backend berjalan di localhost:8000`,
         },
       ]);
-    } finally {
       setIsBotTyping(false);
     }
   };
 
+  // Fungsi untuk menangani Enter
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -67,20 +106,39 @@ const ChatBotPage = () => {
     }
   };
 
-  const suggestions = [
-    "Berapa total permintaan unit tahun 2025?",
-    "Total permintaan semua tahun?",
-    "Barang apa yang paling sering diminta?",
-    "Unit pemohon paling aktif?",
-    "Kategori dengan nilai tertinggi?",
-    "Berapa jumlah pemohon unik?",
-    "Berapa jenis barang yang diminta?",
-  ];
+  // ===== DAFTAR SARAN PERTANYAAN (Dikelompokkan) ===== ✅ DIPERBAIKI
+  const suggestionCategories = {
+    sistem: [
+      "Apa itu STARK?",
+      "Apa itu ATK?",
+      "Fitur apa saja di STARK?",
+      "Bagaimana cara menggunakan dashboard?",
+      "Berapa halaman yang ada?",
+      "Cara membaca visualisasi?",
+      "Data tahun berapa saja tersedia?",
+    ],
+    data: [
+      "Berapa total permintaan unit tahun 2025?",
+      "Tren permintaan tahun 2024",
+      "Tren pengeluaran tahun 2025",
+      "Barang apa yang paling sering diminta?",
+      "Unit pemohon paling aktif?",
+      "Kategori dengan nilai tertinggi?",
+      "Berapa jumlah pemohon unik?",
+      "Berapa jenis barang yang diminta?",
+      "Rata-rata harga per unit?",
+    ],
+  };
+
+  const currentSuggestions = suggestionCategories[selectedCategory];
 
   return (
     <div className="page-content">
       <div className="chatbot-container">
-        <div className="chat-header">🤖 Asisten Analitik Permintaan</div>
+        <div className="chat-header">
+          <img src="/ironman.png" alt="Ironman" style={{ width: '55px', height: '55px'}} />
+          Jarvis Bot
+        </div>
         <div className="chat-box" id="chatBox">
           {messages.map((msg, index) => (
             <div
@@ -89,14 +147,31 @@ const ChatBotPage = () => {
                 msg.sender === "user" ? "user-message" : "bot-message"
               }`}
             >
-              <div className="message-bubble">{msg.text}</div>
+              <div 
+                className="message-bubble"
+                style={{
+                  whiteSpace: "pre-line", 
+                }}
+              >
+                {msg.sender === "bot" && msg.isTyping ? (
+                  <TypingMessage
+                    fullText={msg.fullText || ""}
+                    speed={0.5}
+                    onComplete={() => {
+                      setMessages((prev) =>
+                        prev.map((m, idx) =>
+                          idx === index ? { ...m, text: m.fullText || "", isTyping: false } : m
+                        )
+                      );
+                      setIsBotTyping(false);
+                    }}
+                  />
+                ) : (
+                  msg.text
+                )}
+              </div>
             </div>
           ))}
-          {isBotTyping && (
-            <div className="message bot-message">
-              <div className="message-bubble">⏳ Bot sedang mengetik...</div>
-            </div>
-          )}
           <div ref={messagesEndRef} />
         </div>
         <div className="chat-input">
@@ -107,12 +182,29 @@ const ChatBotPage = () => {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="chat-input-field"
+            style={{
+              flex: 1,
+              padding: "10px 15px",
+              borderRadius: "20px",
+              border: "1px solid #d1d5db",
+              fontSize: "14px",
+              marginRight: "8px",
+            }}
           />
           <button
             id="suggestionChat"
             onClick={() => setShowSuggestions(!showSuggestions)}
-            className="chat-btn suggestion-btn"
+            style={{
+              backgroundColor: "#8b5cf6",
+              color: "white",
+              border: "none",
+              padding: "10px 12px",
+              borderRadius: "20px",
+              cursor: "pointer",
+              marginRight: "0px",
+              // fontSize: "14px",
+              fontWeight: "600",
+            }}
           >
             💡 Saran
           </button>
@@ -120,71 +212,168 @@ const ChatBotPage = () => {
             id="sendChat"
             onClick={() => handleSendMessage()}
             disabled={!inputValue.trim()}
-            className={`chat-btn send-btn ${!inputValue.trim() ? "disabled" : ""}`}
+            style={{
+              backgroundColor: !inputValue.trim() ? "#ccc" : "#3b82f6",
+              color: "white",
+              border: "none",
+              padding: "10px 12px",
+              borderRadius: "20px",
+              cursor: !inputValue.trim() ? "not-allowed" : "pointer",
+              fontWeight: "600",
+            }}
           >
-            ✈ Kirim
+            ✈️ Kirim
           </button>
         </div>
 
-        {/* Popup Saran Responsif */}
+        {/* ===== Popup Saran Pertanyaan dengan Tab ===== ✅ BARU */}
         {showSuggestions && (
-          <div className="suggestions-popup">
-            <h4 className="suggestions-title">💭 Pertanyaan Saran</h4>
-            <div className="suggestions-grid">
-              {suggestions.map((q, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSendMessage(q)}
-                  className="suggestion-item"
-                  onMouseOver={(e) => {
-                    e.target.style.background = "#3b82f6";
-                    e.target.style.color = "white";
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.background = "";
-                    e.target.style.color = "";
-                  }}
-                >
-                  {q}
-                </button>
-              ))}
+          <div
+            style={{
+              position: "absolute",
+              bottom: "70px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "90%",
+              maxWidth: "550px",
+              backgroundColor: "white",
+              border: "2px solid #3b82f6",
+              borderRadius: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 1000,
+              padding: "0",
+              overflow: "hidden",
+            }}
+          >
+            {/* Tab Header */}
+            <div
+              style={{
+                display: "flex",
+                borderBottom: "2px solid #e5e7eb",
+              }}
+            >
+              <button
+                onClick={() => setSelectedCategory("data")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  backgroundColor:
+                    selectedCategory === "data" ? "#3b82f6" : "#f3f4f6",
+                  color: selectedCategory === "data" ? "white" : "#6b7280",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "13px",
+                  transition: "all 0.2s",
+                }}
+              >
+                📊 Pertanyaan Data
+              </button>
+              <button
+                onClick={() => setSelectedCategory("sistem")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  backgroundColor:
+                    selectedCategory === "sistem" ? "#3b82f6" : "#f3f4f6",
+                  color: selectedCategory === "sistem" ? "white" : "#6b7280",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "13px",
+                  transition: "all 0.2s",
+                }}
+              >
+                ℹ️ Tentang Sistem
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div style={{ padding: "12px", maxHeight: "300px", overflowY: "auto" }}>
+              <h4
+                style={{
+                  margin: "0 0 10px 0",
+                  color: "#1f2937",
+                  fontSize: "14px",
+                }}
+              >
+                {selectedCategory === "data"
+                  ? "💭 Tanyakan tentang Data & Tren"
+                  : "💭 Tanyakan tentang Sistem STARK"}
+              </h4>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {currentSuggestions.map((q, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      handleSendMessage(q);
+                      setShowSuggestions(false);
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      fontSize: "12px",
+                      backgroundColor: "#dbeafe",
+                      border: "1px solid #3b82f6",
+                      borderRadius: "14px",
+                      cursor: "pointer",
+                      flex: "0 1 auto",
+                      textAlign: "center",
+                      fontWeight: "500",
+                      color: "#1e40af",
+                      transition: "all 0.2s",
+                      whiteSpace: "nowrap",
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = "#3b82f6";
+                      e.target.style.color = "white";
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = "#dbeafe";
+                      e.target.style.color = "#1e40af";
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      <style jsx>{`
-        /* ✅ Full Responsive Styles */
+      <style>{`
         .page-content {
           display: flex;
           justify-content: center;
           align-items: center;
-          min-height: 100vh;
+          height: 100vh;
           background: transparent;
-          padding: 16px;
-          box-sizing: border-box;
+          padding: 20px;
         }
 
         .chatbot-container {
           position: relative;
           width: 100%;
           max-width: 600px;
+          height: 600px;
           background: transparent;
+          border-radius: 0;
+          box-shadow: none;
           display: flex;
           flex-direction: column;
-          height: calc(100vh - 32px); /* margin top/bottom 16px */
-          max-height: 800px;
           overflow: hidden;
         }
 
         .chat-header {
           background: #3b82f6;
           color: white;
-          padding: 14px 16px;
+          padding: 16px;
           font-size: 16px;
           font-weight: 600;
           text-align: center;
-          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .chat-box {
@@ -195,12 +384,11 @@ const ChatBotPage = () => {
           display: flex;
           flex-direction: column;
           gap: 10px;
-          box-sizing: border-box;
         }
 
         .message {
           display: flex;
-          animation: slideIn 0.3s ease;
+          animation: slideIn 0.2s ease;
         }
 
         .user-message {
@@ -212,10 +400,10 @@ const ChatBotPage = () => {
         }
 
         .message-bubble {
-          max-width: 75%;
+          max-width: 70%;
           padding: 10px 14px;
           border-radius: 12px;
-          line-height: 1.4;
+          line-height: 1.5;
           font-size: 13px;
           word-wrap: break-word;
         }
@@ -234,116 +422,10 @@ const ChatBotPage = () => {
 
         .chat-input {
           display: flex;
-          flex-wrap: wrap;
           gap: 8px;
           padding: 12px;
           background: white;
           border-top: 1px solid #e5e7eb;
-          flex-shrink: 0;
-        }
-
-        .chat-input-field {
-          flex: 1;
-          min-width: 200px;
-          padding: 10px 15px;
-          border: 1px solid #d1d5db;
-          border-radius: 20px;
-          font-size: 14px;
-          outline: none;
-        }
-
-        .chat-btn {
-          padding: 10px 12px;
-          border: none;
-          border-radius: 20px;
-          cursor: pointer;
-          font-weight: 600;
-          font-size: 12px;
-          white-space: nowrap;
-        }
-
-        .suggestion-btn {
-          background: #8b5cf6;
-          color: white;
-        }
-
-        .send-btn {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .send-btn.disabled {
-          background: #ccc;
-          cursor: not-allowed;
-        }
-
-        /* ✅ Popup Saran Responsif */
-        .suggestions-popup {
-          position: absolute;
-          bottom: 72px; /* di atas input (tinggi input ~56px + padding) */
-          left: 16px;
-          right: 16px;
-          background: white;
-          border: 2px solid #3b82f6;
-          border-radius: 12px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-          z-index: 1000;
-          padding: 14px;
-          max-height: 50vh;
-          overflow-y: auto;
-        }
-
-        .suggestions-title {
-          margin: 0 0 10px 0;
-          color: #1f2937;
-          font-size: 15px;
-          font-weight: 600;
-        }
-
-        .suggestions-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-
-        .suggestion-item {
-          flex: 1 1 calc(50% - 4px); /* 2 kolom di mobile */
-          min-width: 180px; /* mencegah terlalu sempit */
-          padding: 10px 12px;
-          font-size: 13px;
-          background: #dbeafe;
-          border: 1px solid #3b82f6;
-          border-radius: 14px;
-          cursor: pointer;
-          text-align: center;
-          font-weight: 500;
-          color: #1e40af;
-          transition: all 0.2s;
-        }
-
-        @media (max-width: 480px) {
-          .suggestion-item {
-            min-width: 100%;
-            flex: 1 1 100%;
-          }
-
-          .chat-input-field {
-            min-width: 100%;
-          }
-
-          .chat-input {
-            flex-direction: column;
-          }
-
-          .suggestions-popup {
-            left: 8px;
-            right: 8px;
-            bottom: 68px;
-          }
-
-          .message-bubble {
-            max-width: 90%;
-          }
         }
 
         @keyframes slideIn {
@@ -357,26 +439,36 @@ const ChatBotPage = () => {
           }
         }
 
-        /* Scrollbar */
-        .chat-box::-webkit-scrollbar,
-        .suggestions-popup::-webkit-scrollbar {
+        .chat-box::-webkit-scrollbar {
           width: 6px;
         }
 
-        .chat-box::-webkit-scrollbar-track,
-        .suggestions-popup::-webkit-scrollbar-track {
+        .chat-box::-webkit-scrollbar-track {
           background: #f1f5f9;
         }
 
-        .chat-box::-webkit-scrollbar-thumb,
-        .suggestions-popup::-webkit-scrollbar-thumb {
+        .chat-box::-webkit-scrollbar-thumb {
           background: #cbd5e1;
           border-radius: 3px;
         }
 
-        .chat-box::-webkit-scrollbar-thumb:hover,
-        .suggestions-popup::-webkit-scrollbar-thumb:hover {
+        .chat-box::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
+        }
+        .typing-text { display: inline; }
+
+        .typing-text .cursor {
+          display: inline-block;
+          color: #1f2937;
+          margin-left: 2px;
+          animation: blink 1s steps(2, start) infinite;
+          font-weight: 700;
+        }
+        
+        @keyframes blink {
+          0% { opacity: 1 }
+          50% { opacity: 0 }
+          100% { opacity: 1 }
         }
       `}</style>
     </div>

@@ -6,7 +6,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
     { key: 'home', label: 'Home', icon: 'fa-home' },
     { key: 'unit-analysis', label: 'Analisis Unit Pemohon', icon: 'fa-users' },
     { key: 'item-analysis', label: 'Analisis Barang', icon: 'fa-boxes' },
-    { key: 'chatbot', label: 'Chatbot Konsultan', icon: 'fa-comments' },
+    // { key: 'chatbot', label: 'Chatbot Konsultan', icon: 'fa-comments' },
     { key: 'about', label: 'About', icon: 'fa-info-circle' },
   ];
 
