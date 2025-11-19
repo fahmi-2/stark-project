@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 import pandas as pd
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import unquote
@@ -127,9 +127,7 @@ for col in required_cols:
 
 def parse_years_param(years_param: str):
     if not years_param or years_param.lower() == "all":
-        # Ambil SEMUA tahun unik dari dataset
-        return sorted(df["Tahun"].dropna().unique().astype(int).tolist())
-
+        return sorted(df["Tahun"].unique().tolist())
     try:
         return sorted(set(int(y.strip()) for y in years_param.split(",") if y.strip().isdigit()))
     except:
@@ -144,50 +142,29 @@ unit_agg_for_segmen = df.groupby("UnitPemohon").agg(
     TotalPengeluaran=("TotalHarga", "sum")
 ).reset_index()
 
-# Tentukan ambang batas untuk Permintaan (Jumlah) → untuk LabelSegmen
+# Ambang batas
 permintaan_vals = unit_agg_for_segmen["TotalPermintaan"]
 p33 = permintaan_vals.quantile(0.33)
 p66 = permintaan_vals.quantile(0.66)
 
-# Tentukan ambang batas untuk Pengeluaran (Uang) → untuk Segmen
 pengeluaran_vals = unit_agg_for_segmen["TotalPengeluaran"]
 e33 = pengeluaran_vals.quantile(0.33)
 e66 = pengeluaran_vals.quantile(0.66)
 
-# Buat dictionary mapping untuk UnitPemohon -> LabelSegmen & Segmen
+# Mapping
 unit_to_label_segmen = {}
 unit_to_segmen = {}
-
 for _, row in unit_agg_for_segmen.iterrows():
     total_permintaan = row["TotalPermintaan"]
     total_pengeluaran = row["TotalPengeluaran"]
-
-    # Klasifikasi Permintaan (Jumlah Unit) → untuk LabelSegmen
-    if total_permintaan >= p66:
-        label_segmen = "Tinggi"
-    elif total_permintaan >= p33:
-        label_segmen = "Sedang"
-    else:
-        label_segmen = "Rendah"
-
-    # Klasifikasi Pengeluaran (Uang) → untuk Segmen
-    if total_pengeluaran >= e66:
-        segmen = "Boros"
-    elif total_pengeluaran >= e33:
-        segmen = "Sedang"
-    else:
-        segmen = "Hemat"
-
+    label_segmen = "Tinggi" if total_permintaan >= p66 else "Sedang" if total_permintaan >= p33 else "Rendah"
+    segmen = "Boros" if total_pengeluaran >= e66 else "Sedang" if total_pengeluaran >= e33 else "Hemat"
     unit_to_label_segmen[row["UnitPemohon"]] = label_segmen
     unit_to_segmen[row["UnitPemohon"]] = segmen
 
-# Tambahkan kolom baru ke DataFrame utama
-df["label_segmen"] = df["UnitPemohon"].map(unit_to_label_segmen)
-df["segmen"] = df["UnitPemohon"].map(unit_to_segmen)
-
-# Isi nilai NaN jika ada unit pemohon baru yang tidak tercakup dalam agregasi
-df["label_segmen"] = df["label_segmen"].fillna("Rendah")
-df["segmen"] = df["segmen"].fillna("Hemat")
+# Tambahkan ke df
+df["label_segmen"] = df["UnitPemohon"].map(unit_to_label_segmen).fillna("Rendah")
+df["segmen"] = df["UnitPemohon"].map(unit_to_segmen).fillna("Hemat")
 
 
 # =====================================================
@@ -196,46 +173,20 @@ df["segmen"] = df["segmen"].fillna("Hemat")
 
 
 @app.get("/api/data")
-async def get_all_data():
-    """
-    Mengambil ringkasan seluruh data tanpa filter.
-    """
+def get_all_data():
     data = df.copy()
-
-    totalRequests = int(data["Jumlah"].sum())
-    outflowValue = float(data["TotalHarga"].sum())
-    outflowValueFormatted = f"Rp{outflowValue:,.0f}".replace(",", ".")
-    totalUniqueRequesters = int(data["UnitPemohon"].nunique())
-
-    # Top 5 barang berdasarkan jumlah permintaan
-    top_items_agg = (
-        data.groupby(["Kategori", "NamaBrg"])
-        .agg(
-            TotalPermintaan=("Jumlah", "sum"),
-            TopRequester=("UnitPemohon", lambda x: x.mode(
-            ).iloc[0] if not x.mode().empty else "N/A")
-        )
-        .reset_index()
-        .nlargest(5, "TotalPermintaan")
-    )
-
-    top_items = []
-    for _, row in top_items_agg.iterrows():
-        top_items.append({
-            "Kategori": row["Kategori"],
-            "NamaBrg": row["NamaBrg"],
-            "TopRequester": row["TopRequester"],
-            "Terjual": int(row["TotalPermintaan"])
-        })
-
-    fastMovingItems = top_items[0]["NamaBrg"] if top_items else "Tidak ada"
-
     return {
-        "totalRequests": totalRequests,
-        "outflowValueFormatted": outflowValueFormatted,
-        "totalUniqueRequesters": totalUniqueRequesters,
-        "fastMovingItems": fastMovingItems,
-        "topItems": top_items,
+        "totalRequests": int(data["Jumlah"].sum()),
+        "outflowValueFormatted": f"Rp{float(data['TotalHarga'].sum()):,.0f}".replace(",", "."),
+        "totalUniqueRequesters": int(data["UnitPemohon"].nunique()),
+        "fastMovingItems": df.groupby("NamaBrg")["Jumlah"].sum().idxmax() if not df.empty else "Tidak ada",
+        "topItems": (
+            df.groupby(["Kategori", "NamaBrg"])
+            .agg(Terjual=("Jumlah", "sum"))
+            .reset_index()
+            .nlargest(5, "Terjual")
+            .to_dict("records")
+        ),
         "totalData": len(data)
     }
 
@@ -778,94 +729,41 @@ async def get_category_unit(year: int):
 
 
 @app.get("/api/all-items/{year}")
-async def get_all_items(year: int):
-    try:
-        data = df[df["Tahun"] == year].copy()
-        if data.empty:
-            return {"items": []}
-
-        # Agregasi per Nama Barang & Kategori
-        item_agg = (
-            data.groupby(["Kategori", "NamaBrg"])
-            .agg(
-                TotalPermintaan=("Jumlah", "sum"),
-                TotalHarga=("TotalHarga", "sum")  # tambahan
-            )
-            .reset_index()
-        )
-
-        # Hitung HargaSatuan rata-rata
-        item_agg["HargaSatuan"] = item_agg["TotalHarga"] / \
-            item_agg["TotalPermintaan"]
-        item_agg["HargaSatuan"] = item_agg["HargaSatuan"].fillna(0).round(2)
-
-        # Urutkan berdasarkan TotalPermintaan
-        item_agg = item_agg.sort_values("TotalPermintaan", ascending=False)
-
-        items = []
-        for _, row in item_agg.iterrows():
-            items.append({
-                "Kategori": row["Kategori"],
-                "NamaBrg": row["NamaBrg"],
-                "TotalPermintaan": int(row["TotalPermintaan"]),
-                "HargaSatuan": float(row["HargaSatuan"])
-            })
-
-        return {"items": items}
-
-    except Exception as e:
-        print(f"[ERROR] All Items: {e}")
-        import traceback
-        traceback.print_exc()
+def get_all_items(year: int):
+    data = df[df["Tahun"] == year].copy()
+    if data.empty:
         return {"items": []}
-
+    item_agg = (
+        data.groupby(["Kategori", "NamaBrg"])
+        .agg(TotalPermintaan=("Jumlah", "sum"), TotalHarga=("TotalHarga", "sum"))
+        .reset_index()
+    )
+    item_agg["HargaSatuan"] = (item_agg["TotalHarga"] / item_agg["TotalPermintaan"]).fillna(0).round(2)
+    items = item_agg.sort_values("TotalPermintaan", ascending=False).to_dict("records")
+    for item in items:
+        item["TotalPermintaan"] = int(item["TotalPermintaan"])
+        item["HargaSatuan"] = float(item["HargaSatuan"])
+    return {"items": items}
 
 @app.get("/api/item-detail/{year}/{item_name}")
-async def get_item_detail_by_name(year: int, item_name: str):
+def get_item_detail_by_name(year: int, item_name: str):
     try:
-        if year not in [2023, 2024, 2025]:
-            return {"units": []}
-
-        decoded_item = unquote(item_name)
-
-        # Filter data berdasarkan tahun dan nama barang
-        filtered = df[
-            (df["Tahun"] == year) &
-            (df["NamaBrg"] == decoded_item)
-        ]
-
+        decoded_item = unquote(item_name).replace("-", "/")
+        filtered = df[(df["Tahun"] == year) & (df["NamaBrg"] == decoded_item)]
         if filtered.empty:
             return {"units": []}
-
-        # Group by UnitPemohon → jumlahkan Jumlah dan TotalHarga
         unit_agg = (
             filtered.groupby("UnitPemohon")
-            .agg(
-                Jumlah=("Jumlah", "sum"),
-                # ✅ LANGSUNG dari kolom TotalHarga
-                TotalPengeluaran=("TotalHarga", "sum")
-            )
+            .agg(Jumlah=("Jumlah", "sum"), TotalPengeluaran=("TotalHarga", "sum"))
             .reset_index()
             .sort_values("Jumlah", ascending=False)
         )
-
-        units = []
-        for _, row in unit_agg.iterrows():
-            units.append({
-                "UnitPemohon": row["UnitPemohon"],
-                "Jumlah": int(row["Jumlah"]),
-                # ✅ Nilai sebenarnya
-                "TotalPengeluaran": float(row["TotalPengeluaran"])
-            })
-
-        return {"units": units}
-
+        return {
+            "units": unit_agg.to_dict("records")
+        }
     except Exception as e:
-        print(f"[ERROR] Item Detail for '{item_name}' in {year}: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"[ERROR] Item Detail: {e}")
         return {"units": []}
-
 # =====================================================
 # ✅ Endpoint 9: ChatBot Query (Dynamic)
 # =====================================================
@@ -880,125 +778,10 @@ def format_rupiah(value):
     else:
         return f"Rp{value:,.0f}".replace(",", ".")
 
+
 # =====================================================
 # ✅ Endpoint 9: ChatBot Query (Dynamic & Smart)
 # =====================================================
-
-@app.get("/api/chatbot-query")
-async def chatbot_query(question: str):
-    """
-    Jawab pertanyaan berdasarkan data riil.
-    Deteksi tahun otomatis dari kalimat.
-    Jika tidak ada tahun, gunakan semua data.
-    """
-    try:
-        # Ekstrak tahun dari kalimat
-        years_in_question = []
-        for word in question.split():
-            if word.isdigit() and len(word) == 4:
-                year = int(word)
-                if 2023 <= year <= 2025:  # Sesuaikan rentang tahun
-                    years_in_question.append(year)
-
-        # Tentukan tahun yang digunakan
-        if len(years_in_question) > 0:
-            target_year = years_in_question[0]  # Ambil tahun pertama
-            data = df[df["Tahun"] == target_year].copy()
-            year_label = f"tahun {target_year}"
-        else:
-            data = df.copy()
-            year_label = "semua tahun (2023–2025)"
-
-        if data.empty:
-            return {"answer": f"Tidak ada data untuk {year_label}."}
-
-        # Logika sederhana berdasarkan pertanyaan
-        lower_q = question.lower()
-
-        # 1. Total Permintaan Unit
-        if "total permintaan unit" in lower_q or "jumlah unit" in lower_q:
-            total = int(data["Jumlah"].sum())
-            return {"answer": f"Total permintaan unit {year_label} adalah {total:,} unit."}
-
-        # 2. Nilai Pengeluaran
-        elif "nilai pengeluaran" in lower_q or "total nilai" in lower_q:
-            total_harga = float(data["TotalHarga"].sum())
-            return {"answer": f"Nilai pengeluaran barang {year_label} adalah {format_rupiah(total_harga)}."}
-
-        # 3. Barang Terlaris
-        elif "barang terlaris" in lower_q or "paling sering diminta" in lower_q:
-            top_item = (
-                data.groupby("NamaBrg")["Jumlah"]
-                .sum()
-                .nlargest(1)
-                .reset_index()
-            )
-            if len(top_item) > 0:
-                nama_brg = top_item.iloc[0]["NamaBrg"]
-                jumlah = int(top_item.iloc[0]["Jumlah"])
-                return {"answer": f"Barang yang paling sering diminta {year_label} adalah '{nama_brg}' dengan total {jumlah:,} barang."}
-            else:
-                return {"answer": f"Tidak ada data barang terlaris {year_label}."}
-
-        # 4. Unit Pemohon Terbanyak
-        elif "unit pemohon" in lower_q and ("terbanyak" in lower_q or "paling banyak" in lower_q):
-            top_unit = (
-                data.groupby("UnitPemohon")["Jumlah"]
-                .sum()
-                .nlargest(1)
-                .reset_index()
-            )
-            if len(top_unit) > 0:
-                unit = top_unit.iloc[0]["UnitPemohon"]
-                jumlah = int(top_unit.iloc[0]["Jumlah"])
-                return {"answer": f"Unit pemohon yang paling aktif {year_label} adalah '{unit}' dengan total {jumlah:,} unit."}
-            else:
-                return {"answer": f"Tidak ada data unit pemohon terbanyak {year_label}."}
-
-        # 5. Kategori dengan Nilai Tertinggi
-        elif "kategori dengan nilai tertinggi" in lower_q:
-            top_cat = (
-                data.groupby("Kategori")["TotalHarga"]
-                .sum()
-                .nlargest(1)
-                .reset_index()
-            )
-            if len(top_cat) > 0:
-                kategori = top_cat.iloc[0]["Kategori"]
-                nilai = float(top_cat.iloc[0]["TotalHarga"])
-                return {"answer": f"Kategori dengan nilai pengeluaran tertinggi {year_label} adalah '{kategori}' dengan nilai {format_rupiah(nilai)}."}
-            else:
-                return {"answer": f"Tidak ada data kategori dengan nilai tertinggi {year_label}."}
-
-        # 6. Tren Bulanan (Januari - Desember)
-        elif "tren bulanan" in lower_q:
-            data["Tanggal"] = pd.to_datetime(
-                data["Tanggal"], dayfirst=True, errors="coerce")
-            data = data.dropna(subset=["Tanggal"])
-            data["Bulan"] = data["Tanggal"].dt.month
-            monthly = data.groupby("Bulan")["Jumlah"].sum().reindex(
-                range(1, 13), fill_value=0)
-            trend = [int(x) for x in monthly.tolist()]
-            return {"answer": f"Tren pengeluaran bulanan {year_label}: {trend}"}
-
-        # Default: tidak dikenali
-        return {
-            "answer": (
-                "Maaf, saya belum mengerti pertanyaan Anda.\n"
-                "Silakan tanyakan tentang:\n"
-                "• Total permintaan unit\n"
-                "• Nilai pengeluaran\n"
-                "• Barang terlaris\n"
-                "• Unit pemohon paling aktif\n"
-                "• Kategori dengan nilai tertinggi\n"
-                "Contoh: \"Berapa total permintaan unit di tahun 2024?\""
-            )
-        }
-
-    except Exception as e:
-        print(f"[ERROR] ChatBot Query: {e}")
-        return {"answer": "Maaf, terjadi kesalahan saat memproses pertanyaan Anda."}
-
 
 def format_rupiah(value):
     if value >= 1_000_000_000:
