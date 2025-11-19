@@ -5,7 +5,7 @@ const ChatBotPage = () => {
   const [messages, setMessages] = useState([
     {
       sender: "bot",
-      text: 'Halo! 👋 Saya adalah Asisten Analitik Permintaan STARK. Tanyakan tentang sistem, data permintaan, tren, atau barang terlaris. Contoh: "Apa itu STARK?" atau "Berapa total permintaan unit di tahun 2024?"',
+      text: 'Halo! 👋 Saya adalah Jarvis Bot Asisten Analitik Permintaan STARK. Tanyakan tentang sistem, data permintaan, tren, atau barang terlaris. Contoh: "Apa itu STARK?" atau "Berapa total permintaan unit di tahun 2024?"',
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -135,7 +135,10 @@ const ChatBotPage = () => {
   return (
     <div className="page-content">
       <div className="chatbot-container">
-        <div className="chat-header">🤖 Asisten Analitik STARK</div>
+        <div className="chat-header">
+          <img src="/ironman.png" alt="Ironman" style={{ width: '55px', height: '55px'}} />
+          Jarvis Bot
+        </div>
         <div className="chat-box" id="chatBox">
           {messages.map((msg, index) => (
             <div
@@ -368,6 +371,9 @@ const ChatBotPage = () => {
           font-size: 16px;
           font-weight: 600;
           text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .chat-box {

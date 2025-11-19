@@ -817,10 +817,10 @@ async def chatbot_query_post(request: ChatRequest):
             or "yo" in question.lower() or "hiya" in question.lower() or "greetings" in question.lower() or "what's up" in question.lower()
             or "wassup" in question.lower() or "sup" in question.lower() or "hey there" in question.lower() or "good morning" in question.lower()
             or "good afternoon" in question.lower() or "good evening" in question.lower() or "good night" in question.lower()
-            or "salut" in question.lower() or "shalom" in question.lower()):
-            return {"answer": "Halo! 👋 Saya Asisten Analitik Permintaan. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"}
+            or "salut" in question.lower() or "shalom" in question.lower() or "namaste" in question.lower() or "alo" in question.lower()):
+            return {"answer": "Halo! 👋 Saya Jarvis Bot. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"}
         elif "assalamualaikum" in question.lower():
-            return {"answer": "Waalaikumsalam! 👋 Saya Asisten Analitik Permintaan. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"}
+            return {"answer": "Waalaikumsalam! 👋 Saya Jarvis Bot. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"}
 
         # ===== STEP 1: Ekstrak tahun dari kalimat =====
         years_in_question = []
@@ -871,9 +871,9 @@ def handle_greeting(question):
         or "wassup" in lower_q or "sup" in lower_q or "hey there" in lower_q or "good morning" in lower_q
         or "good afternoon" in lower_q or "good evening" in lower_q or "good night" in lower_q
         or "salut" in lower_q or "shalom" in lower_q):
-        return "Halo! 👋 Saya Asisten Analitik Permintaan. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"
+        return "Halo! 👋 Saya Jarvis Bot. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"
     elif "assalamualaikum" in lower_q:
-        return "Waalaikumsalam! 👋 Saya Asisten Analitik Permintaan. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"
+        return "Waalaikumsalam! 👋 Saya Jarvis Bot. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"
     return None
 
 def try_answer_from_database(question, data, year_label, lower_q):
