@@ -1159,11 +1159,11 @@ STARK LOADING SCREEN & TRANSITIONS — FIXED SPACING
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  animation: fadeIn 0.1ms ease-in;
+  animation: fadeIn 0.2ms ease-in;
 }
 
 .stark-splash.exit {
-  animation: fadeOut 0.1ms ease-out forwards;
+  animation: fadeOut 0.2ms ease-out forwards;
 }
 
 @keyframes fadeIn {
@@ -1199,7 +1199,7 @@ STARK LOADING SCREEN & TRANSITIONS — FIXED SPACING
   width: 400px;
   height: 400px;
   object-fit: contain;
-  animation: float 0.05s ease-in-out infinite;
+  animation: float 0.5s ease-in-out infinite;
   filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.25));
   /* ✅ Hilangkan margin bawaan */
   margin: 0;
@@ -1280,12 +1280,12 @@ STARK LOADING SCREEN & TRANSITIONS — FIXED SPACING
   align-items: center;
   justify-content: center;
   z-index: 8888;
-  animation: transitionFadeIn 0.3s ease-in;
+  animation: transitionFadeIn 0.2s ease-in;
   pointer-events: none;
 }
 
 .stark-page-transition.out {
-  animation: transitionFadeOut 0.4s ease-out forwards;
+  animation: transitionFadeOut 0.2s ease-out forwards;
 }
 
 @keyframes transitionFadeIn {
