@@ -8,6 +8,7 @@ import UnitAnalysisPage from './pages/UnitAnalysisPage';
 import ItemAnalysisPage from './pages/ItemAnalysisPage';
 import ChatBotPage from './pages/ChatBotPage';
 import AboutPage from './pages/AboutPage';
+import DataManagementPage from './pages/DataManagementPage';
 
 const App = () => {
   const [activePage, setActivePage] = useState('home');
@@ -41,6 +42,8 @@ const App = () => {
         return <AboutPage />;
       default:
         return <HomePage {...props} />;
+      case 'data-management':
+        return <DataManagementPage />;
     }
   };
 
