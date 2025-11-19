@@ -9,6 +9,7 @@ import ItemAnalysisPage from './pages/ItemAnalysisPage';
 import ChatBotPage from './pages/ChatBotPage';
 import AboutPage from './pages/AboutPage';
 import DataManagementPage from './pages/DataManagementPage';
+import ChatWidget from './components/ChatWidget';
 
 const App = () => {
   const [activePage, setActivePage] = useState('home');
@@ -52,14 +53,17 @@ const App = () => {
   }
 
   return (
-    <div className="container">
-      <PageTransition 
-        isActive={showTransition} 
-        onComplete={() => setShowTransition(false)} 
-      />
-      <Sidebar activePage={activePage} onNavigate={handleNavigate} />
-      <div className="main-content">{renderPage()}</div>
-    </div>
+    <>
+      <div className="container">
+        <PageTransition 
+          isActive={showTransition} 
+          onComplete={() => setShowTransition(false)} 
+        />
+        <Sidebar activePage={activePage} onNavigate={handleNavigate} />
+        <div className="main-content">{renderPage()}</div>
+      </div>
+      <ChatWidget />
+    </>
   );
 };
 

@@ -881,7 +881,7 @@ def try_answer_from_database(question, data, year_label, lower_q):
     Coba jawab pertanyaan dari database menggunakan pattern matching
     Return: string (jawaban) atau None (jika tidak cocok)
     """
-    # ===== PERTANYAAN TENTANG SISTEM STARK & ABOUT ===== ✅ BARU
+    # ===== PERTANYAAN TENTANG SISTEM STARK & ABOUT ===== ✅
     
     # 1. Apa itu STARK?
     if any(keyword in lower_q for keyword in ["apa itu stark", "stark itu apa", "pengertian stark", "definisi stark", "tentang stark"]):
@@ -969,6 +969,134 @@ def try_answer_from_database(question, data, year_label, lower_q):
     if data.empty:
         return f"Tidak ada data untuk {year_label}."
 
+    # ===== DETEKSI NAMA UNIT PEMOHON SPESIFIK =====
+    # Ekstrak semua unit pemohon yang ada di data
+    all_units = data["UnitPemohon"].unique().tolist()
+    mentioned_unit = None
+    
+    # Cek apakah ada nama unit yang disebutkan dalam pertanyaan
+    for unit in all_units:
+        if unit.lower() in lower_q:
+            mentioned_unit = unit
+            break
+    
+    # ===== PERTANYAAN SPESIFIK TENTANG UNIT PEMOHON =====
+    
+    # 1. Pengeluaran/Biaya Unit Tertentu
+    if mentioned_unit and any(keyword in lower_q for keyword in ["pengeluaran", "biaya", "nilai", "dana", "anggaran", "menghabiskan", "mengeluarkan"]):
+        unit_data = data[data["UnitPemohon"] == mentioned_unit]
+        if not unit_data.empty:
+            total_pengeluaran = float(unit_data["TotalHarga"].sum())
+            total_permintaan = int(unit_data["Jumlah"].sum())
+            jumlah_transaksi = len(unit_data)
+            kategori_utama = unit_data.groupby("Kategori")["TotalHarga"].sum().idxmax()
+            
+            return (
+                f"💰 Pengeluaran {mentioned_unit} {year_label}:\n\n"
+                f"Total Pengeluaran: {format_rupiah(total_pengeluaran)}\n"
+                f"Total Permintaan: {total_permintaan:,} unit\n"
+                f"Jumlah Transaksi: {jumlah_transaksi}\n"
+                f"Kategori Utama: {kategori_utama}\n"
+                f"Rata-rata per Unit: {format_rupiah(total_pengeluaran / total_permintaan if total_permintaan > 0 else 0)}"
+            )
+    
+    # 2. Barang yang Diminta Unit Tertentu
+    elif mentioned_unit and any(keyword in lower_q for keyword in ["barang", "item", "produk", "minta", "permintaan", "butuh", "beli"]):
+        unit_data = data[data["UnitPemohon"] == mentioned_unit]
+        if not unit_data.empty:
+            top_items = (
+                unit_data.groupby("NamaBrg")["Jumlah"]
+                .sum()
+                .nlargest(5)
+                .reset_index()
+            )
+            
+            result = f"📦 Top 5 Barang yang Diminta {mentioned_unit} {year_label}:\n\n"
+            for i, row in top_items.iterrows():
+                total_harga_item = float(unit_data[unit_data["NamaBrg"] == row["NamaBrg"]]["TotalHarga"].sum())
+                result += f"{i+1}. {row['NamaBrg']}\n   • Jumlah: {int(row['Jumlah']):,} unit\n   • Nilai: {format_rupiah(total_harga_item)}\n\n"
+            
+            total_jenis = int(unit_data["NamaBrg"].nunique())
+            result += f"Total Jenis Barang: {total_jenis} item berbeda"
+            return result
+    
+    # 3. Detail Lengkap Unit Tertentu
+    elif mentioned_unit and any(keyword in lower_q for keyword in ["detail", "lengkap", "info", "informasi", "data"]):
+        unit_data = data[data["UnitPemohon"] == mentioned_unit]
+        if not unit_data.empty:
+            total_pengeluaran = float(unit_data["TotalHarga"].sum())
+            total_permintaan = int(unit_data["Jumlah"].sum())
+            jumlah_transaksi = len(unit_data)
+            jumlah_jenis = int(unit_data["NamaBrg"].nunique())
+            
+            # Top 3 barang
+            top_items = (
+                unit_data.groupby("NamaBrg")["Jumlah"]
+                .sum()
+                .nlargest(3)
+                .reset_index()
+            )
+            
+            # Kategori yang sering diminta
+            top_categories = (
+                unit_data.groupby("Kategori")["Jumlah"]
+                .sum()
+                .nlargest(3)
+                .reset_index()
+            )
+            
+            result = f"📊 Detail Lengkap {mentioned_unit} {year_label}:\n\n"
+            result += f"💰 KEUANGAN:\n"
+            result += f"• Total Pengeluaran: {format_rupiah(total_pengeluaran)}\n"
+            result += f"• Total Permintaan: {total_permintaan:,} unit\n"
+            result += f"• Rata-rata per Unit: {format_rupiah(total_pengeluaran / total_permintaan if total_permintaan > 0 else 0)}\n\n"
+            
+            result += f"📈 AKTIVITAS:\n"
+            result += f"• Jumlah Transaksi: {jumlah_transaksi}\n"
+            result += f"• Jenis Barang: {jumlah_jenis} item\n\n"
+            
+            result += f"🏆 TOP 3 BARANG:\n"
+            for i, row in top_items.iterrows():
+                result += f"{i+1}. {row['NamaBrg']} ({int(row['Jumlah']):,} unit)\n"
+            
+            result += f"\n📦 TOP 3 KATEGORI:\n"
+            for i, row in top_categories.iterrows():
+                result += f"{i+1}. {row['Kategori']} ({int(row['Jumlah']):,} unit)\n"
+            
+            return result
+    
+    # 4. Perbandingan antar Unit
+    elif any(keyword in lower_q for keyword in ["bandingkan", "perbandingan", "lebih besar", "lebih banyak", "vs", "versus"]):
+        # Ekstrak 2 unit yang disebutkan
+        units_found = [unit for unit in all_units if unit.lower() in lower_q]
+        if len(units_found) >= 2:
+            unit1, unit2 = units_found[0], units_found[1]
+            data1 = data[data["UnitPemohon"] == unit1]
+            data2 = data[data["UnitPemohon"] == unit2]
+            
+            if not data1.empty and not data2.empty:
+                pengeluaran1 = float(data1["TotalHarga"].sum())
+                pengeluaran2 = float(data2["TotalHarga"].sum())
+                permintaan1 = int(data1["Jumlah"].sum())
+                permintaan2 = int(data2["Jumlah"].sum())
+                
+                return (
+                    f"⚖️ Perbandingan {unit1} vs {unit2} {year_label}:\n\n"
+                    f"📊 {unit1}:\n"
+                    f"• Pengeluaran: {format_rupiah(pengeluaran1)}\n"
+                    f"• Permintaan: {permintaan1:,} unit\n"
+                    f"• Transaksi: {len(data1)}\n\n"
+                    f"📊 {unit2}:\n"
+                    f"• Pengeluaran: {format_rupiah(pengeluaran2)}\n"
+                    f"• Permintaan: {permintaan2:,} unit\n"
+                    f"• Transaksi: {len(data2)}\n\n"
+                    f"🔍 KESIMPULAN:\n"
+                    f"• Pengeluaran Lebih Besar: {unit1 if pengeluaran1 > pengeluaran2 else unit2} ({format_rupiah(abs(pengeluaran1 - pengeluaran2))} selisih)\n"
+                    f"• Permintaan Lebih Banyak: {unit1 if permintaan1 > permintaan2 else unit2} ({abs(permintaan1 - permintaan2):,} unit selisih)"
+                )
+    
+    # ===== PERTANYAAN UMUM (TANPA UNIT SPESIFIK) =====
+    
     # 1. Total Permintaan Unit
     if any(keyword in lower_q for keyword in ["total permintaan", "jumlah unit", "berapa unit"]) and not any(neg in lower_q for neg in ["paling sedikit", "terendah", "minimum", "termurah"]):
         total = int(data["Jumlah"].sum())
@@ -994,7 +1122,7 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Barang yang paling sering diminta {year_label} adalah '{nama_brg}' dengan total {jumlah:,} unit."
         return None
 
-    # ===== 3B. BARANG PALING JARANG / SEDIKIT DIMINTA ===== ✅ BARU
+    # 3B. BARANG PALING JARANG
     elif any(keyword in lower_q for keyword in ["barang paling jarang", "paling sedikit diminta", "barang tidak laku", "jarang diminta", "paling sedikit"]):
         bottom_item = (
             data.groupby("NamaBrg")["Jumlah"]
@@ -1008,9 +1136,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Barang yang paling jarang diminta {year_label} adalah '{nama_brg}' dengan total {jumlah:,} unit."
         return None
 
-    # 4. Unit Pemohon TERBANYAK / PALING AKTIF
-    elif any(keyword in lower_q for keyword in ["unit pemohon terbanyak", "paling aktif", "unit paling banyak", "pemohon terbanyak",
-                                                "unit paling boros", "unit terbanyak"]) and not any(neg in lower_q for neg in ["tidak aktif", "paling sedikit", "terendah", "jarang", "hemat", "irit"]):
+    # 4. Unit Pemohon TERBANYAK
+    elif any(keyword in lower_q for keyword in ["unit pemohon terbanyak", "paling aktif", "unit paling banyak", "pemohon terbanyak", "unit paling boros", "unit terbanyak"]) and not any(neg in lower_q for neg in ["tidak aktif", "paling sedikit", "terendah", "jarang", "hemat", "irit"]):
         top_unit = (
             data.groupby("UnitPemohon")["Jumlah"]
             .sum()
@@ -1023,10 +1150,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Unit pemohon yang paling aktif {year_label} adalah '{unit}' dengan total {jumlah:,} unit."
         return None
 
-    # ===== 4B. UNIT PEMOHON PALING TIDAK AKTIF / TERENDAH ===== ✅ BARU
-    elif any(keyword in lower_q for keyword in ["unit paling tidak aktif", "unit terendah", "unit paling sedikit", "pemohon paling sedikit", "tidak aktif", "unit jarang", "unit paling jarang", 
-                                                "pemohon terendah" ,"pemohon paling jarang", "pemohon tidak aktif", "unit pemohon terendah", "unit pemohon paling sedikit", "unit paling hemat", 
-                                                "pemohon paling hemat", "unit pemohon paling hemat", "unit pemohon tidak aktif", "pemohon paling irit", "unit pemohon paling irit", "pemohon irit"]):
+    # 4B. UNIT PEMOHON TERENDAH
+    elif any(keyword in lower_q for keyword in ["unit paling tidak aktif", "unit terendah", "unit paling sedikit", "pemohon paling sedikit", "tidak aktif", "unit jarang", "unit paling jarang", "pemohon terendah", "pemohon paling jarang", "pemohon tidak aktif", "unit pemohon terendah", "unit pemohon paling sedikit", "unit paling hemat", "pemohon paling hemat", "unit pemohon paling hemat", "unit pemohon tidak aktif", "pemohon paling irit", "unit pemohon paling irit", "pemohon irit"]):
         bottom_unit = (
             data.groupby("UnitPemohon")["Jumlah"]
             .sum()
@@ -1039,8 +1164,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Unit pemohon yang paling tidak aktif {year_label} adalah '{unit}' dengan total {jumlah:,} unit."
         return None
 
-    # 5. Kategori dengan Nilai Tertinggi
-    elif any(keyword in lower_q for keyword in ["kategori tertinggi", "kategori termahal", "kategori paling tinggi","kategori terbesar", "nilai tertinggi", "pengeluaran tertinggi", ]) and not any(neg in lower_q for neg in ["terendah", "terkecil", "termurah"]):
+    # 5. Kategori Tertinggi
+    elif any(keyword in lower_q for keyword in ["kategori tertinggi", "kategori termahal", "kategori paling tinggi", "kategori terbesar", "nilai tertinggi", "pengeluaran tertinggi"]) and not any(neg in lower_q for neg in ["terendah", "terkecil", "termurah"]):
         top_cat = (
             data.groupby("Kategori")["TotalHarga"]
             .sum()
@@ -1054,8 +1179,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Kategori dengan pengeluaran tertinggi {year_label} adalah '{kategori}' dengan nilai {formatted}."
         return None
 
-    # ===== 5B. KATEGORI DENGAN NILAI TERENDAH ===== ✅ BARU
-    elif any(keyword in lower_q for keyword in ["kategori terendah","kategori paling rendah","kategori terkecil", "nilai terendah", "pengeluaran terendah", "kategori termurah"]):
+    # 5B. Kategori Terendah
+    elif any(keyword in lower_q for keyword in ["kategori terendah", "kategori paling rendah", "kategori terkecil", "nilai terendah", "pengeluaran terendah", "kategori termurah"]):
         bottom_cat = (
             data.groupby("Kategori")["TotalHarga"]
             .sum()
@@ -1087,9 +1212,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Rata-rata harga per unit {year_label} adalah {formatted}."
         return None
 
-    # ===== 8B. BARANG TERMAHAL ===== ✅ BARU
+    # 8B. Barang Termahal
     elif any(keyword in lower_q for keyword in ["barang termahal", "harga tertinggi", "paling mahal", "termahal"]):
-        # Hitung harga per unit untuk setiap barang
         barang_harga = data.groupby("NamaBrg").agg(
             TotalHarga=("TotalHarga", "sum"),
             TotalJumlah=("Jumlah", "sum")
@@ -1103,9 +1227,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Barang termahal {year_label} adalah '{nama}' dengan harga satuan {format_rupiah(harga)}."
         return None
 
-    # ===== 8C. BARANG TERMURAH ===== ✅ BARU
+    # 8C. Barang Termurah
     elif any(keyword in lower_q for keyword in ["barang termurah", "harga terendah", "paling murah", "termurah"]):
-        # Hitung harga per unit untuk setiap barang
         barang_harga = data.groupby("NamaBrg").agg(
             TotalHarga=("TotalHarga", "sum"),
             TotalJumlah=("Jumlah", "sum")
@@ -1119,7 +1242,7 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Barang termurah {year_label} adalah '{nama}' dengan harga satuan {format_rupiah(harga)}."
         return None
 
-    # ===== 9. TREN PERMINTAAN BULANAN (UNIT) =====
+    # 9. Tren Permintaan Bulanan
     elif any(keyword in lower_q for keyword in ["tren permintaan", "pola permintaan", "grafik permintaan", "permintaan bulanan"]):
         if "Tanggal" not in data.columns or data["Tanggal"].isna().all():
             return f"Data tanggal tidak tersedia untuk {year_label}."
@@ -1131,6 +1254,145 @@ def try_answer_from_database(question, data, year_label, lower_q):
             return f"Tidak ada data tanggal yang valid untuk {year_label}."
         
         data["Bulan"] = data["Tanggal"].dt.month
+        
+        monthly = data.groupby("Bulan")["Jumlah"].sum()
+        bulan_nama = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+                      "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+        
+        bulan_min = monthly.idxmin()
+        nilai_min = int(monthly.min())
+        
+        return f"Bulan dengan permintaan terendah {year_label} adalah {bulan_nama[bulan_min - 1]} dengan {nilai_min:,} unit."
+
+    # 13. Top 5 Barang Terlaris
+    elif any(keyword in lower_q for keyword in ["top 5 barang", "5 barang terlaris", "lima barang", "daftar barang terlaris"]):
+        top_items = (
+            data.groupby("NamaBrg")["Jumlah"]
+            .sum()
+            .nlargest(5)
+            .reset_index()
+        )
+        if len(top_items) > 0:
+            result = f"📊 Top 5 Barang Terlaris {year_label.capitalize()}:\n\n"
+            for i, row in top_items.iterrows():
+                result += f"{i+1}. {row['NamaBrg']} - {int(row['Jumlah']):,} unit\n"
+            return result
+        return None
+
+    # 14. Top 5 Unit Pemohon
+    elif any(keyword in lower_q for keyword in ["top 5 unit", "5 unit teraktif", "lima unit", "daftar unit"]):
+        top_units = (
+            data.groupby("UnitPemohon")["Jumlah"]
+            .sum()
+            .nlargest(5)
+            .reset_index()
+        )
+        if len(top_units) > 0:
+            result = f"📊 Top 5 Unit Pemohon Teraktif {year_label.capitalize()}:\n\n"
+            for i, row in top_units.iterrows():
+                result += f"{i+1}. {row['UnitPemohon']} - {int(row['Jumlah']):,} unit\n"
+            return result
+        return None
+
+    # 15. Daftar Semua Unit Pemohon
+    elif any(keyword in lower_q for keyword in ["daftar unit", "semua unit", "list unit", "unit apa saja", "ada unit apa"]):
+        all_units_list = sorted(data["UnitPemohon"].unique().tolist())
+        if len(all_units_list) > 0:
+            result = f"📋 Daftar Unit Pemohon {year_label.capitalize()} ({len(all_units_list)} unit):\n\n"
+            for i, unit in enumerate(all_units_list, 1):
+                unit_total = int(data[data["UnitPemohon"] == unit]["Jumlah"].sum())
+                result += f"{i}. {unit} ({unit_total:,} unit)\n"
+            return result
+        return None
+
+    # 16. Daftar Semua Barang
+    elif any(keyword in lower_q for keyword in ["daftar barang", "semua barang", "list barang", "barang apa saja", "ada barang apa"]):
+        all_items_list = data.groupby("NamaBrg")["Jumlah"].sum().sort_values(ascending=False).head(10).reset_index()
+        if len(all_items_list) > 0:
+            result = f"📋 Top 10 Barang {year_label.capitalize()}:\n\n"
+            for i, row in all_items_list.iterrows():
+                result += f"{i+1}. {row['NamaBrg']} ({int(row['Jumlah']):,} unit)\n"
+            
+            total_jenis = int(data["NamaBrg"].nunique())
+            result += f"\nTotal Jenis Barang: {total_jenis} item"
+            return result
+        return None
+
+    # 12. Bulan Terendah
+    elif any(keyword in lower_q for keyword in ["bulan terendah", "bulan tersedikit", "bulan sepi", "lowest month"]):
+        if "Tanggal" not in data.columns or data["Tanggal"].isna().all():
+            return f"Data tanggal tidak tersedia untuk {year_label}."
+        
+        data["Tanggal"] = pd.to_datetime(data["Tanggal"], dayfirst=True, errors="coerce")
+        data = data.dropna(subset=["Tanggal"])
+        data["Bulan"] = data["Tanggal"].dt.month
+        
+        monthly = data.groupby("Bulan")["Jumlah"].sum()
+        bulan_nama = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+                      "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+        
+        bulan_min = monthly.idxmin()
+        nilai_min = int(monthly.min())
+        
+        return f"Bulan dengan permintaan terendah {year_label} adalah {bulan_nama[bulan_min - 1]} dengan {nilai_min:,} unit."
+
+    # 13. Top 5 Barang Terlaris
+    elif any(keyword in lower_q for keyword in ["top 5 barang", "5 barang terlaris", "lima barang", "daftar barang terlaris"]):
+        top_items = (
+            data.groupby("NamaBrg")["Jumlah"]
+            .sum()
+            .nlargest(5)
+            .reset_index()
+        )
+        if len(top_items) > 0:
+            result = f"📊 Top 5 Barang Terlaris {year_label.capitalize()}:\n\n"
+            for i, row in top_items.iterrows():
+                result += f"{i+1}. {row['NamaBrg']} - {int(row['Jumlah']):,} unit\n"
+            return result
+        return None
+
+    # 14. Top 5 Unit Pemohon
+    elif any(keyword in lower_q for keyword in ["top 5 unit", "5 unit teraktif", "lima unit", "daftar unit"]):
+        top_units = (
+            data.groupby("UnitPemohon")["Jumlah"]
+            .sum()
+            .nlargest(5)
+            .reset_index()
+        )
+        if len(top_units) > 0:
+            result = f"📊 Top 5 Unit Pemohon Teraktif {year_label.capitalize()}:\n\n"
+            for i, row in top_units.iterrows():
+                result += f"{i+1}. {row['UnitPemohon']} - {int(row['Jumlah']):,} unit\n"
+            return result
+        return None
+
+    # 15. Daftar Semua Unit Pemohon
+    elif any(keyword in lower_q for keyword in ["daftar unit", "semua unit", "list unit", "unit apa saja", "ada unit apa"]):
+        all_units_list = sorted(data["UnitPemohon"].unique().tolist())
+        if len(all_units_list) > 0:
+            result = f"📋 Daftar Unit Pemohon {year_label.capitalize()} ({len(all_units_list)} unit):\n\n"
+            for i, unit in enumerate(all_units_list, 1):
+                unit_total = int(data[data["UnitPemohon"] == unit]["Jumlah"].sum())
+                result += f"{i}. {unit} ({unit_total:,} unit)\n"
+            return result
+        return None
+
+    # 16. Daftar Semua Barang
+    elif any(keyword in lower_q for keyword in ["daftar barang", "semua barang", "list barang", "barang apa saja", "ada barang apa"]):
+        all_items_list = data.groupby("NamaBrg")["Jumlah"].sum().sort_values(ascending=False).head(10).reset_index()
+        if len(all_items_list) > 0:
+            result = f"📋 Top 10 Barang {year_label.capitalize()}:\n\n"
+            for i, row in all_items_list.iterrows():
+                result += f"{i+1}. {row['NamaBrg']} ({int(row['Jumlah']):,} unit)\n"
+            
+            total_jenis = int(data["NamaBrg"].nunique())
+            result += f"\nTotal Jenis Barang: {total_jenis} item"
+            return result
+        return None
+
+    # Tidak cocok dengan database pattern
+    # 9. Tren Permintaan Bulanan
+    elif any(keyword in lower_q for keyword in ["tren permintaan", "pola permintaan", "grafik permintaan", "permintaan bulanan"]):
         monthly = data.groupby("Bulan")["Jumlah"].sum().reindex(range(1, 13), fill_value=0)
         
         bulan_nama = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Oct", "Nov", "Des"]
@@ -1147,7 +1409,7 @@ def try_answer_from_database(question, data, year_label, lower_q):
             f"🔝 Puncak: {bulan_tertinggi} ({nilai_tertinggi:,} unit)"
         )
 
-    # ===== 10. TREN PENGELUARAN BULANAN (RUPIAH) =====
+    # 10. Tren Pengeluaran Bulanan
     elif any(keyword in lower_q for keyword in ["tren pengeluaran", "pola pengeluaran", "grafik pengeluaran", "pengeluaran bulanan"]):
         if "Tanggal" not in data.columns or data["Tanggal"].isna().all():
             return f"Data tanggal tidak tersedia untuk {year_label}."
@@ -1175,7 +1437,7 @@ def try_answer_from_database(question, data, year_label, lower_q):
             f"🔝 Puncak: {bulan_tertinggi} ({format_rupiah(nilai_tertinggi)})"
         )
 
-    # ===== 11. BULAN DENGAN PERMINTAAN TERTINGGI ===== ✅ BARU
+    # 11. Bulan Tertinggi
     elif any(keyword in lower_q for keyword in ["bulan tertinggi", "bulan terbanyak", "bulan puncak", "peak month"]):
         if "Tanggal" not in data.columns or data["Tanggal"].isna().all():
             return f"Data tanggal tidak tersedia untuk {year_label}."
@@ -1193,7 +1455,7 @@ def try_answer_from_database(question, data, year_label, lower_q):
         
         return f"Bulan dengan permintaan tertinggi {year_label} adalah {bulan_nama[bulan_max - 1]} dengan {nilai_max:,} unit."
 
-    # ===== 12. BULAN DENGAN PERMINTAAN TERENDAH ===== ✅ BARU
+    # 12. Bulan Terendah
     elif any(keyword in lower_q for keyword in ["bulan terendah", "bulan tersedikit", "bulan sepi", "lowest month"]):
         if "Tanggal" not in data.columns or data["Tanggal"].isna().all():
             return f"Data tanggal tidak tersedia untuk {year_label}."
@@ -1201,48 +1463,6 @@ def try_answer_from_database(question, data, year_label, lower_q):
         data["Tanggal"] = pd.to_datetime(data["Tanggal"], dayfirst=True, errors="coerce")
         data = data.dropna(subset=["Tanggal"])
         data["Bulan"] = data["Tanggal"].dt.month
-        
-        monthly = data.groupby("Bulan")["Jumlah"].sum()
-        bulan_nama = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", 
-                      "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-        
-        bulan_min = monthly.idxmin()
-        nilai_min = int(monthly.min())
-        
-        return f"Bulan dengan permintaan terendah {year_label} adalah {bulan_nama[bulan_min - 1]} dengan {nilai_min:,} unit."
-
-    # ===== 13. TOP 5 BARANG TERLARIS ===== ✅ BARU
-    elif any(keyword in lower_q for keyword in ["top 5 barang", "5 barang terlaris", "lima barang", "daftar barang terlaris"]):
-        top_items = (
-            data.groupby("NamaBrg")["Jumlah"]
-            .sum()
-            .nlargest(5)
-            .reset_index()
-        )
-        if len(top_items) > 0:
-            result = f"📊 Top 5 Barang Terlaris {year_label.capitalize()}:\n\n"
-            for i, row in top_items.iterrows():
-                result += f"{i+1}. {row['NamaBrg']} - {int(row['Jumlah']):,} unit\n"
-            return result
-        return None
-
-    # ===== 14. TOP 5 UNIT PEMOHON TERAKTIF ===== ✅ BARU
-    elif any(keyword in lower_q for keyword in ["top 5 unit", "5 unit teraktif", "lima unit", "daftar unit"]):
-        top_units = (
-            data.groupby("UnitPemohon")["Jumlah"]
-            .sum()
-            .nlargest(5)
-            .reset_index()
-        )
-        if len(top_units) > 0:
-            result = f"📊 Top 5 Unit Pemohon Teraktif {year_label.capitalize()}:\n\n"
-            for i, row in top_units.iterrows():
-                result += f"{i+1}. {row['UnitPemohon']} - {int(row['Jumlah']):,} unit\n"
-            return result
-        return None
-
-    # Tidak cocok dengan database pattern
-    return None
 
 # === Endpoint: Daftar Semua Unit Pemohon dengan Segmen & Kategori ===
 

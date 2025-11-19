@@ -7,16 +7,80 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: #f5f7fa;
   color: #334155;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-left: 260px;
+  height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #2f4156 15%, #c8d9e6 45%, #567cbd 65%, #f5efeb 85%, #ffffff 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+.page-content {
+  display: block !important;
+  background: transparent !important;
+  margin-left: 30px !important;
+}
+
+.sidebar {
+  width: 260px !important;
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  height: 100vh !important;
+  z-index: 1000 !important;
+}
+
+/* Ensure ChatWidget doesn't interfere */
+.chat-widget-button,
+.chat-widget-panel-wrapper {
+  position: fixed !important;
+  z-index: 999999 !important;
+}
+
+/* Force proper layout when chatbot is open */
+body:has(.chat-widget-panel-wrapper) .main-content,
+body:has(.chat-widget-panel-wrapper) .container,
+body:has(.chat-widget-panel-wrapper) .sidebar {
+  position: static !important;
+}
+
+body:has(.chat-widget-panel-wrapper) .main-content {
+  margin-left: 260px !important;
+  width: calc(100% - 260px) !important;
+}
+
+body:has(.chat-widget-panel-wrapper) .sidebar {
+  position: fixed !important;
+  width: 260px !important;
 }
 
 /* === SIDEBAR === */
@@ -86,19 +150,6 @@ body {
 
 .menu-icon i {
   font-size: 16px;
-}
-
-/* === MAIN CONTENT (UPDATE UTAMA) === */
-.main-content {
-  flex: 1;
-  padding: 30px;
-  overflow-y: auto;
-  background: linear-gradient(135deg, #0f172a 0%, #2f4156 15%, #c8d9e6 45%, #567cbd 65%, #f5efeb 85%, #ffffff 100%);
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
-  margin-left: 260px; /* For desktop */
-  min-height: 100vh;
-  transition: margin-left 0.3s ease;
 }
 
 .page-content {
@@ -1159,11 +1210,11 @@ STARK LOADING SCREEN & TRANSITIONS — FIXED SPACING
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  animation: fadeIn 0.2ms ease-in;
+  animation: fadeIn 0.1ms ease-in;
 }
 
 .stark-splash.exit {
-  animation: fadeOut 0.2ms ease-out forwards;
+  animation: fadeOut 0.1ms ease-out forwards;
 }
 
 @keyframes fadeIn {
@@ -1199,7 +1250,7 @@ STARK LOADING SCREEN & TRANSITIONS — FIXED SPACING
   width: 400px;
   height: 400px;
   object-fit: contain;
-  animation: float 0.5s ease-in-out infinite;
+  animation: float 0.05s ease-in-out infinite;
   filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.25));
   /* ✅ Hilangkan margin bawaan */
   margin: 0;
@@ -1280,12 +1331,12 @@ STARK LOADING SCREEN & TRANSITIONS — FIXED SPACING
   align-items: center;
   justify-content: center;
   z-index: 8888;
-  animation: transitionFadeIn 0.2s ease-in;
+  animation: transitionFadeIn 0.3s ease-in;
   pointer-events: none;
 }
 
 .stark-page-transition.out {
-  animation: transitionFadeOut 0.2s ease-out forwards;
+  animation: transitionFadeOut 0.4s ease-out forwards;
 }
 
 @keyframes transitionFadeIn {

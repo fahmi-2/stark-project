@@ -12,7 +12,37 @@ const ChatBotPage = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("data"); // 'data' atau 'sistem'
   const messagesEndRef = useRef(null);
-  const [isBotTyping, setIsBotTyping] = useState(false);
+  const [isBotTyping, setIsBotTyping] = useState(150);
+
+  const TypingMessage = ({ fullText, speed = 150, onComplete }) => {
+    const [displayed, setDisplayed] = useState("");
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+      mountedRef.current = true;
+      let i = 0;
+      const interval = setInterval(() => {
+        if (!mountedRef.current) return;
+        i += 1;
+        setDisplayed(fullText.slice(0, i));
+        if (i >= fullText.length) {
+          clearInterval(interval);
+          if (onComplete) onComplete();
+        }
+      }, speed);
+      return () => {
+        mountedRef.current = false;
+        clearInterval(interval);
+      };
+    }, [fullText, speed, onComplete]);
+
+    return (
+      <span className="typing-text">
+        {displayed}
+        <span className="cursor">&nbsp;|</span>
+      </span>
+    );
+  };
 
   // Scroll ke bawah saat ada pesan baru
   const scrollToBottom = () => {
@@ -48,11 +78,12 @@ const ChatBotPage = () => {
       const data = await response.json();
       console.log("Response dari backend:", data);
 
-      // Tampilkan respons bot dengan formatting yang lebih baik
+      // Tampilkan respons bot dengan efek ketik (cursor writing)
       const formattedAnswer = data.answer || "Tidak ada respons dari server.";
+      // Tambahkan pesan bot yang dalam mode 'isTyping' — TypingMessage akan menyelesaikannya
       setMessages((prev) => [
         ...prev,
-        { sender: "bot", text: formattedAnswer },
+        { sender: "bot", text: "", isTyping: true, fullText: formattedAnswer, id: Date.now() },
       ]);
     } catch (err) {
       console.error("Error:", err);
@@ -63,7 +94,6 @@ const ChatBotPage = () => {
           text: `Maaf, terjadi kesalahan: ${err.message}. Pastikan backend berjalan di localhost:8000`,
         },
       ]);
-    } finally {
       setIsBotTyping(false);
     }
   };
@@ -117,18 +147,28 @@ const ChatBotPage = () => {
               <div 
                 className="message-bubble"
                 style={{
-                  whiteSpace: "pre-line", // ✅ Biar format \n berfungsi
+                  whiteSpace: "pre-line", 
                 }}
               >
-                {msg.text}
+                {msg.sender === "bot" && msg.isTyping ? (
+                  <TypingMessage
+                    fullText={msg.fullText || ""}
+                    speed={0.5}
+                    onComplete={() => {
+                      setMessages((prev) =>
+                        prev.map((m, idx) =>
+                          idx === index ? { ...m, text: m.fullText || "", isTyping: false } : m
+                        )
+                      );
+                      setIsBotTyping(false);
+                    }}
+                  />
+                ) : (
+                  msg.text
+                )}
               </div>
             </div>
           ))}
-          {isBotTyping && (
-            <div className="message bot-message">
-              <div className="message-bubble">⏳ Bot sedang mengetik...</div>
-            </div>
-          )}
           <div ref={messagesEndRef} />
         </div>
         <div className="chat-input">
@@ -342,7 +382,7 @@ const ChatBotPage = () => {
 
         .message {
           display: flex;
-          animation: slideIn 0.3s ease;
+          animation: slideIn 0.2s ease;
         }
 
         .user-message {
@@ -408,6 +448,21 @@ const ChatBotPage = () => {
 
         .chat-box::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
+        }
+        .typing-text { display: inline; }
+
+        .typing-text .cursor {
+          display: inline-block;
+          color: #1f2937;
+          margin-left: 2px;
+          animation: blink 1s steps(2, start) infinite;
+          font-weight: 700;
+        }
+        
+        @keyframes blink {
+          0% { opacity: 1 }
+          50% { opacity: 0 }
+          100% { opacity: 1 }
         }
       `}</style>
     </div>
