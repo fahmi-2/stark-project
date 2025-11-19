@@ -1,6 +1,7 @@
 /* src/App.css */
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
 
+
 * {
   margin: 0;
   padding: 0;
@@ -226,7 +227,7 @@ input:focus {
 }
 
 .category-filter-select {
-  min-width: 200px;
+  min-width: fit-content;
 }
 
 .results-info {
@@ -970,12 +971,12 @@ tr:hover {
     min-width: auto;
   }
   select {
-    min-width: 120px;
-    font-size: 14px;
+    min-width: 100px;
+    font-size: 12px;
     padding: 8px 12px;
   }
   table {
-    min-width: 600px;
+    min-width: 400px;
   }
   .year-chips {
     flex-wrap: wrap;
@@ -1226,4 +1227,22 @@ tr:hover {
   border-top: none;
   border-radius: 0 0 8px 8px;
   gap: 8px;
+}
+@media (max-width: 768px) {
+  .filter-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .year-chips {
+    justify-content: center;
+  }
+  /* Atur ulang layout filter row */
+  .filter-row-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .filter-row-container > div {
+    width: 100%;
+  }
 }

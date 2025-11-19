@@ -135,28 +135,32 @@ const UnitAnalysisPage = () => {
 
     fetchAggregatedData();
   }, [selectedYears]); // Efek ini dijalankan setiap kali `selectedYears` berubah
-
+const [selectedYearForTable, setSelectedYearForTable] = useState(2025);
   // === Fetch Daftar Semua Unit (Tidak terpengaruh oleh filter tahun) ===
-  useEffect(() => {
-    const fetchUnits = async () => {
-      try {
-        const res = await fetchAPI("/api/unit-pemohon-list");
-        const data = await res.json();
-        // Urutkan unit secara ascending berdasarkan UnitPemohon
-        const sortedUnits = (data.units || []).sort((a, b) =>
-          a.UnitPemohon.localeCompare(b.UnitPemohon)
-        );
-        setAllUnits(sortedUnits);
-        setAvailableUnitsForRadar(data.units?.map((u) => u.UnitPemohon) || []);
-      } catch (error) {
-        console.error("Gagal memuat daftar unit:", error);
-        setAllUnits([]);
-        setAvailableUnitsForRadar([]);
-      }
-    };
-    fetchUnits();
-  }, []);
-
+  // === Fetch Daftar Semua Unit (Tidak terpengaruh oleh filter tahun) ===
+useEffect(() => {
+  const fetchUnits = async () => {
+    try {
+      const res = await fetchAPI(`/api/unit-pemohon-list/${selectedYearForTable}`);
+      const data = await res.json();
+      // Urutkan unit secara ascending berdasarkan UnitPemohon
+      const sortedUnits = (data.units || []).sort((a, b) =>
+        a.UnitPemohon.localeCompare(b.UnitPemohon)
+      );
+      setAllUnits(sortedUnits);
+      setAvailableUnitsForRadar(data.units?.map((u) => u.UnitPemohon) || []);
+    } catch (error) {
+      console.error("Gagal memuat daftar unit:", error);
+      setAllUnits([]);
+      setAvailableUnitsForRadar([]);
+    }
+  };
+  fetchUnits();
+}, [selectedYearForTable]); // ✅ TAMBAHKAN DEPENDENCY INI
+useEffect(() => {
+  setSearchQuery(""); // Reset pencarian saat ganti tahun
+  setCurrentPage(1);
+}, [selectedYearForTable]);
   // === Fetch Radar Data ===
   useEffect(() => {
     const fetchRadar = async (unit, setter) => {
@@ -178,18 +182,24 @@ const UnitAnalysisPage = () => {
   }, [radarUnit1, radarUnit2]);
 
   // === Pilih 2 unit acak saat pertama kali ===
-  useEffect(() => {
-    if (availableUnitsForRadar.length >= 2) {
-      const shuffled = [...availableUnitsForRadar].sort(
-        () => 0.5 - Math.random()
-      );
+  // ✅ Perbaikan: Inisialisasi radar unit hanya saat belum ada pilihan (initial render / kosong)
+useEffect(() => {
+  // Cukup sekali saat availableUnitsForRadar pertama kali terisi & belum ada pilihan aktif
+  if (
+    availableUnitsForRadar.length > 0 &&
+    !radarUnit1 &&
+    !radarUnit2
+  ) {
+    const shuffled = [...availableUnitsForRadar].sort(() => 0.5 - Math.random());
+    if (shuffled.length >= 2) {
       setRadarUnit1(shuffled[0]);
       setRadarUnit2(shuffled[1]);
-    } else if (availableUnitsForRadar.length === 1) {
-      setRadarUnit1(availableUnitsForRadar[0]);
+    } else if (shuffled.length === 1) {
+      setRadarUnit1(shuffled[0]);
       setRadarUnit2("");
     }
-  }, [availableUnitsForRadar]);
+  }
+}, [availableUnitsForRadar, radarUnit1, radarUnit2]); // Tambahkan dependency agar tidak over-trigger
 
   // === Filter & Pagination (untuk Tabel) ===
   const filteredUnits = useMemo(() => {
@@ -298,31 +308,37 @@ const UnitAnalysisPage = () => {
   };
 
   // === Chart Data ===
-  const barDataRequesters = {
-    labels: topRequesters.map((item) => item.UnitPemohon),
-    datasets: [
-      {
-        label: "Total Barang Diminta",
-        data: topRequesters.map((item) => item.TotalPermintaan),
-        backgroundColor: topRequesters.map((_, i) =>
-          getOrangeGradient(i, topRequesters.length)
-        ),
-      },
-    ],
-  };
+ // Helper: Singkatkan teks jika lebih dari 20 karakter
+const shortenLabel = (text, maxLength = 20) => {
+  if (!text) return "";
+  return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
+};
 
-  const barDataSpending = {
-    labels: topSpendingUnits.map((item) => item.UnitPemohon),
-    datasets: [
-      {
-        label: "Total Pengeluaran (Rp)",
-        data: topSpendingUnits.map((item) => item.TotalPengeluaran),
-        backgroundColor: topSpendingUnits.map((_, i) =>
-          getBlueGradientColor(i, topSpendingUnits.length)
-        ),
-      },
-    ],
-  };
+const barDataRequesters = {
+  labels: topRequesters.map((item) => shortenLabel(item.UnitPemohon, 20)),
+  datasets: [
+    {
+      label: "Total Barang Diminta",
+      data: topRequesters.map((item) => item.TotalPermintaan),
+      backgroundColor: topRequesters.map((_, i) =>
+        getOrangeGradient(i, topRequesters.length)
+      ),
+    },
+  ],
+};
+
+const barDataSpending = {
+  labels: topSpendingUnits.map((item) => shortenLabel(item.UnitPemohon, 20)),
+  datasets: [
+    {
+      label: "Total Pengeluaran (Rp)",
+      data: topSpendingUnits.map((item) => item.TotalPengeluaran),
+      backgroundColor: topSpendingUnits.map((_, i) =>
+        getBlueGradientColor(i, topSpendingUnits.length)
+      ),
+    },
+  ],
+};
 
   const scatterChartData = {
     datasets: [
@@ -425,6 +441,7 @@ const UnitAnalysisPage = () => {
 </div>
 
 {/* Layout 2 kolom */}
+            {/* Layout 2 kolom - Responsif */}
       <div
         className="charts-grid"
         style={{
@@ -434,7 +451,8 @@ const UnitAnalysisPage = () => {
           marginTop: "24px",
         }}
       >
-        <div className="chart-card">
+        {/* Bar Chart: Top Requesters */}
+        <div className="chart-card" style={{ minHeight: "300px", display: "flex", flexDirection: "column" }}>
           <h3 className="chart-title">
             Top 10 Unit Pemohon (
             {selectedYears.length === ALL_YEARS.length
@@ -442,25 +460,77 @@ const UnitAnalysisPage = () => {
               : selectedYears.join(", ")}
             )
           </h3>
-          <div className="chart-container" style={{ height: "280px" }}>
+          <div
+            className="chart-container"
+            style={{
+              flex: 1,
+              minHeight: "200px",
+              maxHeight: "400px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
             {topRequesters.length > 0 ? (
-              <Bar data={barDataRequesters} options={barOptions} />
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
+              <Bar
+                data={barDataRequesters}
+                options={{
+                  ...barOptions,
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: "y",
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        label: (context) => {
+                          const value = context.raw;
+                          return `${context.label}: ${value.toLocaleString()}`;
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: (value) => {
+                          if (value >= 1000000) return `${Math.round(value / 1000000)}jt`;
+                          if (value >= 1000) return `${Math.round(value / 1000)}rb`;
+                          return value.toString();
+                        },
+                        maxRotation: 0,
+                        minRotation: 0,
+                        font: {
+                          size: 12,
+                        },
+                      },
+                    },
+                    y: {
+                      ticks: {
+                        font: {
+                          size: 12,
+                        },
+                        padding: 6,
+                      },
+                      grid: {
+                        display: false,
+                      },
+                    },
+                  },
                 }}
-              >
+              />
+            ) : (
+              <div style={{ textAlign: "center", color: "#666", fontSize: "14px" }}>
                 Tidak ada data
               </div>
             )}
           </div>
         </div>
 
-        <div className="chart-card">
+        {/* Bar Chart: Top Spending Units */}
+        <div className="chart-card" style={{ minHeight: "300px", display: "flex", flexDirection: "column" }}>
           <h3 className="chart-title">
             Top 10 Unit dengan Pengeluaran Terbesar (
             {selectedYears.length === ALL_YEARS.length
@@ -468,18 +538,70 @@ const UnitAnalysisPage = () => {
               : selectedYears.join(", ")}
             )
           </h3>
-          <div className="chart-container" style={{ height: "280px" }}>
+          <div
+            className="chart-container"
+            style={{
+              flex: 1,
+              minHeight: "200px",
+              maxHeight: "400px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
             {topSpendingUnits.length > 0 ? (
-              <Bar data={barDataSpending} options={barOptions} />
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
+              <Bar
+                data={barDataSpending}
+                options={{
+                  ...barOptions,
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: "y",
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        label: (context) => {
+                          const value = context.raw;
+                          return `${context.label}: ${formatRupiahLengkap(value)}`;
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: (value) => {
+                          if (value >= 1000000000) return `${Math.round(value / 1000000000)}m`;
+                          if (value >= 1000000) return `${Math.round(value / 1000000)}jt`;
+                          if (value >= 1000) return `${Math.round(value / 1000)}rb`;
+                          return value.toString();
+                        },
+                        maxRotation: 0,
+                        minRotation: 0,
+                        font: {
+                          size: 12,
+                        },
+                      },
+                    },
+                    y: {
+                      ticks: {
+                        font: {
+                          size: 12,
+                        },
+                        padding: 6,
+                      },
+                      grid: {
+                        display: false,
+                      },
+                    },
+                  },
                 }}
-              >
+              />
+            ) : (
+              <div style={{ textAlign: "center", color: "#666", fontSize: "14px" }}>
                 Tidak ada data
               </div>
             )}
@@ -506,24 +628,38 @@ const UnitAnalysisPage = () => {
         </div>
       </div>
 
-      {/* Radar Chart - Tidak terpengaruh oleh filter tahun */}
+            {/* Radar Chart - Tidak terpengaruh oleh filter tahun */}
       <div className="chart-card" style={{ marginTop: "24px" }}>
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            flexDirection: "column",
+            gap: "12px",
             marginBottom: "16px",
           }}
         >
-          <h3 className="chart-title">
-            Perbandingan Profil Unit (Radar Chart)
-          </h3>
-          <div style={{ display: "flex", gap: "12px" }}>
+          <h3 className="chart-title">Perbandingan Profil Unit (Radar Chart)</h3>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "12px",
+              width: "100%",
+            }}
+          >
             <select
               value={radarUnit1}
               onChange={(e) => setRadarUnit1(e.target.value)}
-              style={{ padding: "6px", minWidth: "180px" }}
+              style={{
+                padding: "8px",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+                fontSize: "14px",
+                width: "100%",
+                maxWidth: "100%",
+                boxSizing: "border-box",
+              }}
             >
               <option value="">Pilih Unit 1</option>
               {availableUnitsForRadar.map((unit) => (
@@ -532,10 +668,19 @@ const UnitAnalysisPage = () => {
                 </option>
               ))}
             </select>
+
             <select
               value={radarUnit2}
               onChange={(e) => setRadarUnit2(e.target.value)}
-              style={{ padding: "6px", minWidth: "180px" }}
+              style={{
+                padding: "8px",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+                fontSize: "14px",
+                width: "100%",
+                maxWidth: "100%",
+                boxSizing: "border-box",
+              }}
             >
               <option value="">Pilih Unit 2</option>
               {availableUnitsForRadar.map((unit) => (
@@ -546,7 +691,17 @@ const UnitAnalysisPage = () => {
             </select>
           </div>
         </div>
-        <div className="chart-container" style={{ height: "400px" }}>
+
+        <div
+          className="chart-container"
+          style={{
+            height: "300px", // ⬇️ Dikurangi dari 400px → lebih kompak
+            minHeight: "250px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           {radarUnit1 || radarUnit2 ? (
             <Radar
               data={{
@@ -605,18 +760,33 @@ const UnitAnalysisPage = () => {
                     : []),
                 ],
               }}
-              options={radarOptions}
+              options={{
+                ...radarOptions,
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: "top",
+                    labels: {
+                      font: {
+                        size: 12,
+                      },
+                    },
+                  },
+                },
+                scales: {
+                  r: {
+                    angleLines: { display: true },
+                    suggestedMin: 0,
+                    suggestedMax: 10,
+                    ticks: { stepSize: 2, font: { size: 10 } },
+                  },
+                },
+              }}
             />
           ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-              }}
-            >
-              Pilih minimal satu unit
+            <div style={{ textAlign: "center", color: "#666", fontSize: "14px" }}>
+              Pilih minimal satu unit untuk membandingkan profil.
             </div>
           )}
         </div>
@@ -624,130 +794,180 @@ const UnitAnalysisPage = () => {
 
       {/* Tabel Unit - Tidak terpengaruh oleh filter tahun, diurutkan ascending */}
       <div className="chart-card" style={{ marginTop: "24px" }}>
-        <div
+  {/* Header dengan Judul, Search, dan Filter Tahun */}
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "16px",
+      flexWrap: "wrap",
+      gap: "12px",
+    }}
+  >
+    <h3 className="chart-title">
+      Daftar Unit Pemohon (Tahun {selectedYearForTable} - Diurutkan A-Z)
+    </h3>
+
+    <div className="search-bar">
+      <div className="search-container">
+        <input
+          type="text"
+          placeholder="Cari Nama Unit..."
+          className="search-input"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Cari unit"
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
+            flex: 1,
+            padding: "8px 12px",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            fontSize: "14px",
+            minWidth: "200px",
           }}
-        >
-          <h3 className="chart-title">
-            Daftar Unit Pemohon (Semua Tahun - Diurutkan A-Z)
-          </h3>
-          <input
-            type="text"
-            placeholder="Cari unit pemohon..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            className="clear-btn"
+            onClick={() => setSearchQuery("")}
+            aria-label="Bersihkan pencarian"
             style={{
-              padding: "8px 12px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              width: "250px",
-            }}
-          />
-        </div>
-
-        <div className="table-container" style={{ overflowX: "auto" }}>
-          {paginatedUnits.length > 0 ? (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Unit Pemohon</th>
-                  <th>Total Permintaan</th>
-                  <th>Total Pengeluaran</th>
-                  <th>Segmen (Uang)</th>
-                  <th>Label Segmen (Jumlah)</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedUnits.map((unit, idx) => (
-                  <tr key={idx}>
-                    <td>{unit.UnitPemohon}</td>
-                    <td>{unit.TotalPermintaan.toLocaleString()}</td>
-                    <td>{formatRupiahLengkap(unit.TotalPengeluaran)}</td>
-                    <td>{unit.Segmen}</td>
-                    <td>{unit.LabelSegmen}</td>
-                    <td>
-                      <button
-                        onClick={() => openDetailModal(unit.UnitPemohon)}
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: "#3b82f6",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Detail Barang
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div
-              style={{ padding: "20px", textAlign: "center", color: "#666" }}
-            >
-              {searchQuery
-                ? "Unit tidak ditemukan"
-                : "Tidak ada data unit pemohon"}
-            </div>
-          )}
-        </div>
-
-        {filteredUnits.length > ITEMS_PER_PAGE && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              marginTop: "16px",
-              gap: "8px",
+              background: "#ef4444",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              padding: "6px 8px",
+              cursor: "pointer",
+              fontSize: "14px",
             }}
           >
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              style={{
-                padding: "6px 12px",
-                backgroundColor: currentPage === 1 ? "#e5e7eb" : "#3b82f6",
-                color: currentPage === 1 ? "#9ca3af" : "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: currentPage === 1 ? "not-allowed" : "pointer",
-              }}
-            >
-              Previous
-            </button>
-            <span style={{ alignSelf: "center" }}>
-              Halaman {currentPage} dari {totalPages}
-            </span>
-            <button
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-              }
-              disabled={currentPage === totalPages}
-              style={{
-                padding: "6px 12px",
-                backgroundColor:
-                  currentPage === totalPages ? "#e5e7eb" : "#3b82f6",
-                color: currentPage === totalPages ? "#9ca3af" : "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-              }}
-            >
-              Next
-            </button>
-          </div>
+            ×
+          </button>
         )}
       </div>
 
-      {/* Modal Detail Barang */}
+      <div className="table-controls" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <label className="table-year-label" htmlFor="table-year-select" style={{ fontSize: "14px", color: "#374151" }}>
+          Tahun:
+        </label>
+        <select
+          id="table-year-select"
+          className="year-filter-select"
+          value={selectedYearForTable}
+          onChange={(e) => setSelectedYearForTable(Number(e.target.value))}
+          aria-label="Pilih tahun untuk tabel"
+          style={{
+            padding: "6px 8px",
+            borderRadius: "6px",
+            border: "1px solid #e5e7eb",
+            background: "#fff",
+            fontSize: "14px",
+            minWidth: "80px",
+          }}
+        >
+          <option value={2023}>2023</option>
+          <option value={2024}>2024</option>
+          <option value={2025}>2025</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {/* Tabel Unit Pemohon */}
+  <div className="table-container" style={{ overflowX: "auto" }}>
+    {paginatedUnits.length > 0 ? (
+      <table className="data-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+        <thead>
+          <tr style={{ backgroundColor: "#f9fafb" }}>
+            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: "bold" }}>Unit Pemohon</th>
+            <th style={{ padding: "10px 12px", textAlign: "right", fontWeight: "bold" }}>Total Permintaan</th>
+            <th style={{ padding: "10px 12px", textAlign: "right", fontWeight: "bold" }}>Total Pengeluaran</th>
+            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: "bold" }}>Segmen (Uang)</th>
+            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: "bold" }}>Label Segmen (Jumlah)</th>
+            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: "bold" }}>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginatedUnits.map((unit, idx) => (
+            <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+              <td style={{ padding: "10px 12px", wordBreak: "break-word" }}>{unit.UnitPemohon}</td>
+              <td style={{ padding: "10px 12px", textAlign: "right" }}>{unit.TotalPermintaan.toLocaleString()}</td>
+              <td style={{ padding: "10px 12px", textAlign: "right" }}>{formatRupiahLengkap(unit.TotalPengeluaran)}</td>
+              <td style={{ padding: "10px 12px", textAlign: "center" }}>{unit.Segmen}</td>
+              <td style={{ padding: "10px 12px", textAlign: "center" }}>{unit.LabelSegmen}</td>
+              <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                <button
+                  onClick={() => openDetailModal(unit.UnitPemohon)}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                  }}
+                >
+                  Detail Barang
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+        {searchQuery ? "Unit tidak ditemukan" : "Tidak ada data unit pemohon"}
+      </div>
+    )}
+  </div>
+
+  {/* Pagination */}
+  {filteredUnits.length > ITEMS_PER_PAGE && (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        marginTop: "16px",
+        gap: "8px",
+      }}
+    >
+      <button
+        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+        disabled={currentPage === 1}
+        style={{
+          padding: "6px 12px",
+          backgroundColor: currentPage === 1 ? "#e5e7eb" : "#3b82f6",
+          color: currentPage === 1 ? "#9ca3af" : "white",
+          border: "none",
+          borderRadius: "4px",
+          cursor: currentPage === 1 ? "not-allowed" : "pointer",
+        }}
+      >
+        Previous
+      </button>
+      <span style={{ alignSelf: "center" }}>Halaman {currentPage} dari {totalPages}</span>
+      <button
+        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+        disabled={currentPage === totalPages}
+        style={{
+          padding: "6px 12px",
+          backgroundColor: currentPage === totalPages ? "#e5e7eb" : "#3b82f6",
+          color: currentPage === totalPages ? "#9ca3af" : "white",
+          border: "none",
+          borderRadius: "4px",
+          cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+        }}
+      >
+        Next
+      </button>
+    </div>
+  )}
+</div>
+
+            {/* Modal Detail Barang */}
       {isModalOpen && (
         <div
           style={{
@@ -770,7 +990,6 @@ const UnitAnalysisPage = () => {
               width: "90%",
               maxWidth: "1000px",
               maxHeight: "90vh",
-              overflow: "hidden",
               display: "flex",
               flexDirection: "column",
             }}
@@ -798,7 +1017,16 @@ const UnitAnalysisPage = () => {
               </button>
             </div>
 
-            <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+            <div
+              style={{
+                padding: "16px",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+                overflowY: "auto", // ⬅️ Aktifkan scroll
+              }}
+            >
               {unitItems.length > 0 ? (
                 <>
                   {selectedItemForChart && (
@@ -812,41 +1040,119 @@ const UnitAnalysisPage = () => {
                     </div>
                   )}
 
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Nama Barang</th>
-                        <th>Total</th>
-                        <th>Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {unitItems.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>{item.NamaBarang}</td>
-                          <td>{item.Total}</td>
-                          <td>
-                            <button
-                              onClick={() => setSelectedItemForChart(item)}
+                  <div
+                    style={{
+                      overflowX: "auto", // ⬅️ Jika tabel lebar, bisa scroll horizontal
+                      border: "1px solid #eee",
+                      borderRadius: "6px",
+                      backgroundColor: "#fafafa",
+                    }}
+                  >
+                    <table
+                      className="data-table"
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        tableLayout: "fixed", // ⬅️ Agar kolom tidak meledak
+                        fontSize: "14px",
+                      }}
+                    >
+                      <thead>
+                        <tr style={{ backgroundColor: "#f3f4f6" }}>
+                          <th
+                            style={{
+                              padding: "10px",
+                              textAlign: "left",
+                              fontWeight: "bold",
+                              width: "40%",
+                            }}
+                          >
+                            Nama Barang
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px",
+                              textAlign: "right",
+                              fontWeight: "bold",
+                              width: "30%",
+                            }}
+                          >
+                            Total
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px",
+                              textAlign: "center",
+                              fontWeight: "bold",
+                              width: "30%",
+                            }}
+                          >
+                            Aksi
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unitItems.map((item, idx) => (
+                          <tr
+                            key={idx}
+                            style={{
+                              borderBottom: "1px solid #eee",
+                              transition: "background-color 0.2s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor = "#f9fafb")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor = "white")
+                            }
+                          >
+                            <td
                               style={{
-                                padding: "4px 8px",
-                                backgroundColor: "#10b981",
-                                color: "white",
-                                border: "none",
-                                borderRadius: "4px",
-                                cursor: "pointer",
+                                padding: "10px",
+                                wordBreak: "break-word", // ⬅️ Jika nama panjang, turun baris
+                                whiteSpace: "normal",
                               }}
                             >
-                              Lihat Tren
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                              {item.NamaBarang}
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px",
+                                textAlign: "right",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {item.Total}
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px",
+                                textAlign: "center",
+                              }}
+                            >
+                              <button
+                                onClick={() => setSelectedItemForChart(item)}
+                                style={{
+                                  padding: "4px 8px",
+                                  backgroundColor: "#10b981",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                Lihat Tren
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </>
               ) : (
-                <p>
+                <p style={{ textAlign: "center", color: "#666", fontSize: "14px" }}>
                   Tidak ada data permintaan barang untuk unit ini di tahun
                   terbaru dari filter.
                 </p>

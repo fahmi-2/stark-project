@@ -440,37 +440,37 @@ const HomePage = () => {
     return <div className="page-content">Tidak ada data.</div>;
   }
 
-return (
-  <div className="page-content">
-    <div className="dashboard-header">
-      <h1>Dashboard Permintaan & Pengeluaran</h1>
-      <div className="filter-section">
-  <span className="filter-label">Tahun :</span>
-  <div className="year-chips" role="tablist" aria-label="Pilih tahun untuk grafik">
-    <button
-      type="button"
-      className={`year-pill ${selectedYears.length === ALL_YEARS.length ? "active" : ""}`}
-      onClick={toggleAllYears}
-      aria-pressed={selectedYears.length === ALL_YEARS.length}
-    >
-      Semua
-    </button>
-    {ALL_YEARS.map((year) => (
-      <button
-        key={`chart-${year}`}
-        type="button"
-        className={`year-pill ${selectedYears.includes(year) ? "active" : ""}`}
-        onClick={() => toggleYear(year)}
-        aria-pressed={selectedYears.includes(year)}
-      >
-        {year}
-      </button>
-    ))}
-  </div>
-</div>
-    </div>
+  return (
+    <div className="page-content">
+      <div className="dashboard-header">
+        <h1>Dashboard Permintaan & Pengeluaran</h1>
+        <div className="filter-section">
+          <span className="filter-label">Tahun :</span>
+          <div className="year-chips" role="tablist" aria-label="Pilih tahun untuk grafik">
+            <button
+              type="button"
+              className={`year-pill ${selectedYears.length === ALL_YEARS.length ? "active" : ""}`}
+              onClick={toggleAllYears}
+              aria-pressed={selectedYears.length === ALL_YEARS.length}
+            >
+              Semua
+            </button>
+            {ALL_YEARS.map((year) => (
+              <button
+                key={`chart-${year}`}
+                type="button"
+                className={`year-pill ${selectedYears.includes(year) ? "active" : ""}`}
+                onClick={() => toggleYear(year)}
+                aria-pressed={selectedYears.includes(year)}
+              >
+                {year}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-    <div className="stats-grid">
+      <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-header">
             <span className="stat-title">Total Permintaan</span>
@@ -549,61 +549,61 @@ return (
       </div>
 
       <div className="charts-grid">
-        {/* === GRAFIK 3 GARIS: Pengeluaran Uang per Tahun === */}
-        <div className="chart-card" style={{ marginTop: "24px" }}>
-          <h3 className="chart-title">
-            Tren Pengeluaran Uang oleh Unit Pemohon per Bulan
-            {selectedYears.length > 1
-              ? ` (${selectedYears.join(", ")})`
-              : ` (${selectedYears[0]})`}
-          </h3>
-          <div className="chart-container" style={{ height: "350px" }}>
-            <Line data={lineDataExpenditure} options={lineOptions} />
-          </div>
-        </div>
+  {/* === GRAFIK 3 GARIS: Pengeluaran Uang per Tahun === */}
+  <div className="chart-card" style={{ marginTop: "24px" }}>
+    <h3 className="chart-title">
+      Tren Pengeluaran Uang oleh Unit Pemohon per Bulan
+      {selectedYears.length > 1
+        ? ` (${selectedYears.join(", ")})`
+        : ` (${selectedYears[0]})`}
+    </h3>
+    <div className="chart-container" style={{ height: "300px", width: "100%" }}>
+      <Line data={lineDataExpenditure} options={lineOptions} />
+    </div>
+  </div>
 
-        <div className="chart-card" style={{ marginTop: "24px" }}>
-          <h3 className="chart-title">
-            Proporsi Permintaan & Pengeluaran Berdasarkan Kategori Barang
-          </h3>
-          <div
-            style={{
-              display: "flex",
-              gap: "20px",
-              justifyContent: "space-between",
-              marginTop: "16px",
-            }}
-          >
-            {/* Donat 1: Proporsi Nilai Pengeluaran */}
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <h4 style={{ fontSize: "13px", color: "#475569" }}>
-                Nilai Pengeluaran (Rp)
-              </h4>
-              <div className="chart-container" style={{ height: "300px" }}>
-                {doughnutData && (
-                  <Doughnut data={doughnutData} options={doughnutOptions} />
-                )}
-              </div>
-            </div>
-
-            {/* Donat 2: Proporsi Permintaan (Unit) */}
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <h4 style={{ fontSize: "13px", color: "#475569" }}>
-                Jumlah Permintaan (Unit)
-              </h4>
-              <div className="chart-container" style={{ height: "300px" }}>
-                {doughnutDataDemand && (
-                  <Doughnut
-                    data={doughnutDataDemand}
-                    options={doughnutOptionsDemand}
-                  />
-                )}
-              </div>
-            </div>
-          </div>{" "}
-          {/* <-- Tutup div flex container di sini */}
+  <div className="chart-card" style={{ marginTop: "24px" }}>
+    <h3 className="chart-title">
+      Proporsi Permintaan & Pengeluaran Berdasarkan Kategori Barang
+    </h3>
+    <div
+      style={{
+        display: "flex",
+        gap: "0px",
+        justifyContent: "space-around",
+        marginTop: "16px",
+        flexWrap: "wrap",
+      }}
+    >
+      {/* Donat 1: Nilai Pengeluaran */}
+      <div style={{ flex: "1 1 45%", minWidth: "200px", textAlign: "center" }}>
+        <h4 style={{ fontSize: "13px", color: "#475569" }}>
+          Nilai Pengeluaran (Rp)
+        </h4>
+        <div className="chart-container" style={{ height: "300px" }}>
+          {doughnutData && (
+            <Doughnut data={doughnutData} options={doughnutOptions} />
+          )}
         </div>
       </div>
+
+      {/* Donat 2: Jumlah Permintaan */}
+      <div style={{ flex: "1 1 45%", minWidth: "200px", textAlign: "center" }}>
+        <h4 style={{ fontSize: "13px", color: "#475569" }}>
+          Jumlah Permintaan (Unit)
+        </h4>
+        <div className="chart-container" style={{ height: "300px" }}>
+          {doughnutDataDemand && (
+            <Doughnut
+              data={doughnutDataDemand}
+              options={doughnutOptionsDemand}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
       <div className="charts-grid">
         <div className="chart-card">

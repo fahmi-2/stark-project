@@ -12,6 +12,27 @@ import {
 import { fetchAPI } from "../utils/api";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
+// === Warna biru gradasi (gelap → terang)  ===
+const getBlueGradientColor = (index, total) => {
+  const dark = [26, 42, 122]; // #1a2a7a
+  const light = [147, 197, 253]; // #93c5fd
+  const ratio = index / Math.max(total - 1, 1);
+  const r = Math.round(dark[0] + (light[0] - dark[0]) * ratio);
+  const g = Math.round(dark[1] + (light[1] - dark[1]) * ratio);
+  const b = Math.round(dark[2] + (light[2] - dark[2]) * ratio);
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
+// === Warna oranye gradasi ===
+const getOrangeGradient = (index, total) => {
+  const dark = [124, 45, 18];      // #7c2d12
+  const light = [251, 218, 116];   // #fdba74
+  const ratio = index / Math.max(total - 1, 1);
+  const r = Math.round(dark[0] + (light[0] - dark[0]) * ratio);
+  const g = Math.round(dark[1] + (light[1] - dark[1]) * ratio);
+  const b = Math.round(dark[2] + (light[2] - dark[2]) * ratio);
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
 const ITEMS_PER_PAGE = 10;
 const ALL_YEARS = [2023, 2024, 2025];
@@ -156,9 +177,12 @@ const ItemAnalysisPage = () => {
   const filteredItems = useMemo(() => {
     return allItemsForTable.filter((item) => {
       const categoryMatch = selectedCategory === "" || item.Kategori === selectedCategory;
+      // const selectedCategory = document.getElementById("category-filter")
       const searchMatch =
         item.NamaBrg.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.Kategori.toLowerCase().includes(searchTerm.toLowerCase());
+      // selectedCategory.size = 5;
+
       return categoryMatch && searchMatch;
     });
   }, [allItemsForTable, searchTerm, selectedCategory]);
@@ -256,33 +280,62 @@ const ItemAnalysisPage = () => {
     scales: { x: { beginAtZero: true } },
   };
 
-  const barValueData = useMemo(
-    () => ({
-      labels: categoryValueData.labels?.length > 0 ? categoryValueData.labels : ["Tidak Ada Data"],
-      datasets: [
-        {
-          label: "Nilai Pengeluaran",
-          data: categoryValueData.data?.length > 0 ? categoryValueData.data : [0],
-          backgroundColor: "#3b82f6",
-        },
-      ],
-    }),
-    [categoryValueData]
-  );
+const barValueData = useMemo(() => {
+  const labels =
+    categoryValueData.labels?.length > 0
+      ? categoryValueData.labels
+      : ["Tidak Ada Data"];
 
-  const barUnitData = useMemo(
-    () => ({
-      labels: categoryUnitData.labels?.length > 0 ? categoryUnitData.labels : ["Tidak Ada Data"],
-      datasets: [
-        {
-          label: "Total Unit Diminta",
-          data: categoryUnitData.data?.length > 0 ? categoryUnitData.data : [0],
-          backgroundColor: "#10b981",
-        },
-      ],
-    }),
-    [categoryUnitData]
-  );
+  const data =
+    categoryValueData.data?.length > 0
+      ? categoryValueData.data
+      : [0];
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Nilai Pengeluaran",
+        data,
+        backgroundColor: data.map((_, i) =>
+          getBlueGradientColor(i, data.length)
+        ),
+      },
+    ],
+  };
+}, [categoryValueData]);
+
+
+const barUnitData = useMemo(() => {
+  const labels =
+    categoryUnitData.labels?.length > 0
+      ? categoryUnitData.labels
+      : ["Tidak Ada Data"];
+
+  const data =
+    categoryUnitData.data?.length > 0
+      ? categoryUnitData.data
+      : [0];
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Total Unit Diminta",
+        data,
+        backgroundColor: data.map((_, i) =>
+          getOrangeGradient(i, data.length)
+        ),
+      },
+    ],
+  };
+}, [categoryUnitData]);
+const shortenText = (text, maxLength = 20) => {
+  if (!text) return "";
+  return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
+};
+
+
 
   if (loading) return <div className="page-content">Loading...</div>;
 
@@ -319,136 +372,308 @@ const ItemAnalysisPage = () => {
       </div>
 
       <div className="charts-grid">
-        <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi</h3>
-          <div className="chart-container" style={{ height: "300px" }}>
-            {categoryValueData.labels?.length > 0 ? (
-              <Bar data={barValueData} options={barValueOptions} />
-            ) : (
-              <div className="chart-placeholder">Tidak ada data nilai pengeluaran</div>
-            )}
-          </div>
-        </div>
-        <div className="chart-card">
-          <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi</h3>
-          <div className="chart-container" style={{ height: "300px" }}>
-            {categoryUnitData.labels?.length > 0 ? (
-              <Bar data={barUnitData} options={barUnitOptions} />
-            ) : (
-              <div className="chart-placeholder">Tidak ada data volume unit</div>
-            )}
-          </div>
-        </div>
-      </div>
+  <div className="chart-card">
+    <h3 className="chart-title">Kategori Barang dengan Nilai Pengeluaran Tertinggi</h3>
+    <div className="chart-container">
+      {categoryValueData.labels?.length > 0 ? (
+        <Bar data={barValueData} options={barValueOptions} />
+      ) : (
+        <div className="chart-placeholder">Tidak ada data nilai pengeluaran</div>
+      )}
+    </div>
+  </div>
+  <div className="chart-card">
+    <h3 className="chart-title">Kategori Barang dengan Volume Unit Pengeluaran Tertinggi</h3>
+    <div className="chart-container">
+      {categoryUnitData.labels?.length > 0 ? (
+        <Bar data={barUnitData} options={barUnitOptions} />
+      ) : (
+        <div className="chart-placeholder">Tidak ada data volume unit</div>
+      )}
+    </div>
+  </div>
+</div>
 
-      <div className="table-card">
-        <h3 className="chart-title">
+            <div className="table-card" style={{
+        marginTop: "24px",
+        backgroundColor: "#fff",
+        borderRadius: "8px",
+        padding: "16px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}>
+        <h3 className="chart-title" style={{
+          marginBottom: 0,
+          fontSize: "18px",
+          fontWeight: "600",
+        }}>
           Tabel Detail Barang{selectedCategory ? ` - ${selectedCategory}` : ""} (Tahun {selectedYearForTable})
         </h3>
-        <div className="search-bar">
-          <div className="search-container">
-            <input
-              type="text"
-              placeholder="Cari Nama Barang atau Kategori..."
-              className="search-input"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              aria-label="Cari barang"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                className="clear-btn"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearchTerm("");
-                }}
-                aria-label="Bersihkan pencarian"
-              >
-                ×
-              </button>
-            )}
-          </div>
 
-          <div className="table-controls">
-            <label className="table-year-label" htmlFor="table-year-select">
-              Tahun:
-            </label>
-            <select
-              id="table-year-select"
-              className="year-filter-select"
-              value={selectedYearForTable}
-              onChange={(e) => setSelectedYearForTable(Number(e.target.value))}
-              aria-label="Pilih tahun untuk tabel"
-            >
-              <option value={2025}>2025</option>
-              <option value={2024}>2024</option>
-              <option value={2023}>2023</option>
-            </select>
+                {/* Filter Row — Sejajar dengan tabel, ukuran lebih kompak */}
+        {/* Filter Row — Urutan: Search → Tahun → Kategori */}
+<div style={{
+  display: "flex",
+  flexDirection: "column", // Default: stack vertikal di semua layar
+  gap: "12px",
+  padding: "12px 0",
+  borderBottom: "1px solid #eee",
+}}>
+  {/* Search Input — selalu di atas */}
+  <div style={{
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    width: "100%",
+    maxWidth: "600px",
+  }}>
+    <input
+      type="text"
+      placeholder="Cari Nama Barang atau Kategori..."
+      value={searchInput}
+      onChange={(e) => setSearchInput(e.target.value)}
+      style={{
+        flex: 1,
+        padding: "8px 12px",
+        border: "1px solid #e5e7eb",
+        borderRadius: "8px",
+        fontSize: "14px",
+      }}
+    />
+    {searchInput && (
+      <button
+        type="button"
+        onClick={() => {
+          setSearchInput("");
+          setSearchTerm("");
+        }}
+        style={{
+          background: "#ef4444",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          padding: "6px 8px",
+          cursor: "pointer",
+          fontSize: "14px",
+        }}
+      >
+        ×
+      </button>
+    )}
+  </div>
 
-            {/* ✅ TAMBAHKAN FILTER KATEGORI DI SINI */}
-            <label className="table-category-label" htmlFor="category-filter">
-              Kategori:
-            </label>
-            <select
-              id="category-filter"
-              className="category-filter-select"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              aria-label="Pilih kategori barang"
-            >
-              <option value="">Semua Kategori</option>
-              {CATEGORIES.slice(1).map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+  {/* Tahun & Kategori — sejajar di layar lebar, stack di mobile */}
+  <div style={{
+    display: "flex",
+    gap: "16px",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    width: "100%",
+  }}>
+    {/* Filter Tahun */}
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <label htmlFor="table-year-select" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+        Tahun:
+      </label>
+      <select
+        id="table-year-select"
+        value={selectedYearForTable}
+        onChange={(e) => setSelectedYearForTable(Number(e.target.value))}
+        style={{
+          padding: "6px 8px",
+          borderRadius: "10px",
+          border: "1px solid #ddd",
+          fontSize: "12px",
+          minWidth: "80px",
+        }}
+      >
+        <option value={2025}>2025</option>
+        <option value={2024}>2024</option>
+        <option value={2023}>2023</option>
+      </select>
+    </div>
 
-            <div className="results-info">
-              Menampilkan <strong>{sortedFilteredItems.length}</strong> dari{" "}
-              <strong>{allItemsForTable.length}</strong>
-            </div>
-          </div>
-        </div>
+    {/* Filter Kategori */}
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <label htmlFor="category-filter" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+        Kategori:
+      </label>
+      <select
+        id="category-filter"
+        value={selectedCategory}
+        onChange={(e) => setSelectedCategory(e.target.value)}
+        style={{
+          padding: "6px 8px",
+          borderRadius: "10px",
+          border: "1px solid #ddd",
+          fontSize: "12px",
+          minWidth: "100px",
+        }}
+      >
+        <option value="">Semua Kategori</option>
+        {CATEGORIES.slice(1).map((cat) => (
+          <option key={cat} value={cat}>
+            {shortenText(cat, 25)}
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
 
-        <table id="detailedItemTable">
-          <thead>
-            <tr>
-              <th>Kategori</th>
-              <th>Nama Barang</th>
-              <th>Harga Satuan</th>
-              <th>Total Barang Diminta</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedItems.length > 0 ? (
-              paginatedItems.map((item, index) => (
-                <tr key={item.NamaBrg || index}>
-                  <td>{item.Kategori}</td>
-                  <td>{item.NamaBrg}</td>
-                  <td>{formatRupiah(item.HargaSatuan)}</td>
-                  <td>{item.TotalPermintaan.toLocaleString()} barang</td>
-                  <td>
-                    <button className="btn btn-primary" onClick={() => handleShowDetail(item.NamaBrg)}>
-                      Detail
-                    </button>
+  {/* Info Total */}
+  <div style={{
+    fontSize: "14px",
+    color: "#666",
+    alignSelf: "flex-end",
+    textAlign: "right",
+    width: "100%",
+  }}>
+    Menampilkan <strong>{sortedFilteredItems.length}</strong> dari{" "}
+    <strong>{allItemsForTable.length}</strong> barang
+  </div>
+</div>
+
+        {/* Tabel — Scroll Horizontal Saja */}
+        <div style={{
+          overflowX: "auto", // ⬅️ Hanya scroll horizontal
+          border: "1px solid #eee",
+          borderRadius: "8px",
+          backgroundColor: "#fff",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+          maxHeight: "400px",
+        }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              fontSize: "14px",
+            }}
+          >
+            <thead style={{
+              position: "sticky",
+              top: 0,
+              backgroundColor: "#f9fafb",
+              zIndex: 1,
+            }}>
+              <tr style={{
+                borderBottom: "2px solid #e5e7eb",
+              }}>
+                <th style={{
+                  padding: "10px 12px",
+                  textAlign: "left",
+                  fontWeight: "bold",
+                  width: "15%",
+                }}>Kategori</th>
+                <th style={{
+                  padding: "10px 12px",
+                  textAlign: "left",
+                  fontWeight: "bold",
+                  width: "30%",
+                }}>Nama Barang</th>
+                <th style={{
+                  padding: "10px 12px",
+                  textAlign: "right",
+                  fontWeight: "bold",
+                  width: "20%",
+                }}>Harga Satuan</th>
+                <th style={{
+                  padding: "10px 12px",
+                  textAlign: "right",
+                  fontWeight: "bold",
+                  width: "20%",
+                }}>Total Barang Diminta</th>
+                <th style={{
+                  padding: "10px 12px",
+                  textAlign: "center",
+                  fontWeight: "bold",
+                  width: "15%",
+                }}>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedItems.length > 0 ? (
+                paginatedItems.map((item, index) => (
+                  <tr
+                    key={item.NamaBrg || index}
+                    style={{
+                      borderBottom: "1px solid #eee",
+                      transition: "background-color 0.2s",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "white")
+                    }
+                  >
+                    <td style={{
+                      padding: "10px 12px",
+                      wordBreak: "break-word",
+                      whiteSpace: "normal",
+                    }}>{item.Kategori}</td>
+                    <td style={{
+                      padding: "10px 12px",
+                      wordBreak: "break-word",
+                      whiteSpace: "normal",
+                    }}>{item.NamaBrg}</td>
+                    <td style={{
+                      padding: "10px 12px",
+                      textAlign: "right",
+                    }}>{formatRupiah(item.HargaSatuan)}</td>
+                    <td style={{
+                      padding: "10px 12px",
+                      textAlign: "right",
+                    }}>{item.TotalPermintaan.toLocaleString()} barang</td>
+                    <td style={{
+                      padding: "10px 12px",
+                      textAlign: "center",
+                    }}>
+                      <button
+                        onClick={() => handleShowDetail(item.NamaBrg)}
+                        style={{
+                          padding: "6px 12px",
+                          backgroundColor: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                        }}
+                      >
+                        Detail
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" style={{
+                    padding: "24px 16px",
+                    textAlign: "center",
+                    color: "#666",
+                    backgroundColor: "#fafafa",
+                    fontSize: "14px",
+                  }}>
+                    Tidak ada data barang ditemukan
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" style={{ textAlign: "center" }}>
-                  Tidak ada data barang ditemukan
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
 
+        {/* Pagination — HANYA SATU, DI BAWAH TABEL */}
         {totalPages > 1 && (
-          <div className="pagination-controls" style={{ marginTop: "16px", display: "flex", justifyContent: "center", gap: "8px" }}>
+          <div style={{
+            marginTop: "16px",
+            display: "flex",
+            justifyContent: "center",
+            gap: "8px",
+          }}>
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
@@ -463,7 +688,9 @@ const ItemAnalysisPage = () => {
             >
               Previous
             </button>
-            <span style={{ alignSelf: "center" }}>Halaman {currentPage} dari {totalPages}</span>
+            <span style={{ alignSelf: "center" }}>
+              Halaman {currentPage} dari {totalPages}
+            </span>
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
@@ -482,47 +709,205 @@ const ItemAnalysisPage = () => {
         )}
       </div>
 
-      {detailModal && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4>Nama Barang: {detailModal.namaBarang}</h4>
-              <button className="close-btn" onClick={closeModal}>
-                ×
+            {detailModal && (
+        <div
+          className="modal-overlay"
+          onClick={closeModal}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "white",
+              borderRadius: "8px",
+              width: "90%",
+              maxWidth: "800px",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            }}
+          >
+            {/* Modal Header — fixed, tidak scroll */}
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid #eee",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h4 style={{ margin: 0, fontSize: "18px" }}>
+                Detail Barang: <strong>{detailModal.namaBarang}</strong>
+              </h4>
+              <button
+                onClick={closeModal}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                  color: "#666",
+                }}
+              >
+                &times;
               </button>
             </div>
-            <div className="modal-body">
-              <p>
-                <strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}
-              </p>
-              {detailModal.units && detailModal.units.length > 0 ? (
-                <table className="detail-table">
-                  <thead>
-                    <tr>
-                      <th>Unit Pemohon</th>
-                      <th>Jumlah Permintaan</th>
-                      <th>Total Pengeluaran</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detailModal.units.map((unit, idx) => (
-                      <tr key={idx}>
-                        <td>{unit.UnitPemohon}</td>
-                        <td>{unit.Jumlah.toLocaleString()} barang</td>
-                        <td>{formatRupiah(unit.TotalPengeluaran)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>
-                  {detailModal.noUnitsMessage ||
-                    `Tidak ada unit pemohon untuk barang ini di tahun ${selectedYearForTable}.`}
+
+            {/* Modal Scrollable Body — ✅ HANYA INI YANG SCROLL */}
+            <div
+              style={{
+                padding: "0 20px",
+                overflowY: "auto", // ⬅️ Scroll vertical
+                overflowX: "auto", // ⬅️ Scroll horizontal jika tabel lebar
+                flex: 1,
+                maxHeight: "calc(85vh - 120px)", // header + footer ≈ 120px
+              }}
+            >
+              <div style={{ padding: "16px 0" }}>
+                <p style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
+                  <strong>Harga Satuan:</strong> {formatRupiah(detailModal.hargaSatuan)}
                 </p>
-              )}
+
+                {detailModal.units && detailModal.units.length > 0 ? (
+                  <div
+                    style={{
+                      overflowX: "auto",
+                      border: "1px solid #eee",
+                      borderRadius: "6px",
+                      backgroundColor: "#fafafa",
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        tableLayout: "fixed",
+                        fontSize: "14px",
+                      }}
+                    >
+                      <thead>
+                        <tr style={{ backgroundColor: "#f3f4f6" }}>
+                          <th
+                            style={{
+                              padding: "10px 12px",
+                              textAlign: "left",
+                              fontWeight: "bold",
+                              width: "35%",
+                            }}
+                          >
+                            Unit Pemohon
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 12px",
+                              textAlign: "right",
+                              fontWeight: "bold",
+                              width: "30%",
+                            }}
+                          >
+                            Jumlah Permintaan
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 12px",
+                              textAlign: "right",
+                              fontWeight: "bold",
+                              width: "35%",
+                            }}
+                          >
+                            Total Pengeluaran
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailModal.units.map((unit, idx) => (
+                          <tr
+                            key={idx}
+                            style={{
+                              borderBottom: "1px solid #eee",
+                            }}
+                          >
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                wordBreak: "break-word",
+                                whiteSpace: "normal",
+                              }}
+                            >
+                              {unit.UnitPemohon}
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                textAlign: "right",
+                              }}
+                            >
+                              {unit.Jumlah.toLocaleString()} barang
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                textAlign: "right",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {formatRupiah(unit.TotalPengeluaran)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: "24px 16px",
+                      textAlign: "center",
+                      color: "#666",
+                      backgroundColor: "#fafafa",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    {detailModal.noUnitsMessage ||
+                      `Tidak ada unit pemohon untuk barang ini di tahun ${selectedYearForTable}.`}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={closeModal}>
+
+            {/* Modal Footer — fixed, tidak scroll */}
+            <div
+              style={{
+                padding: "16px 20px",
+                borderTop: "1px solid #eee",
+                textAlign: "right",
+              }}
+            >
+              <button
+                onClick={closeModal}
+                style={{
+                  padding: "8px 16px",
+                  backgroundColor: "#6b7280",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
                 Tutup
               </button>
             </div>
@@ -699,6 +1084,91 @@ const ItemAnalysisPage = () => {
           }
           .table-category-label {
             margin-left: 0;
+            /* === RESPONSIVE CHARTS === */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .chart-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-title {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 16px;
+  }
+  .chart-container {
+    flex: 1;
+    min-height: 240px;
+    width: 100%;
+  }
+
+  /* === RESPONSIVE TABLE === */
+  .table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+  table#detailedItemTable {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px; /* Pastikan tidak collapse terlalu kecil */
+  }
+  table#detailedItemTable th,
+  table#detailedItemTable td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  table#detailedItemTable th {
+    background-color: #f9fafb;
+    position: sticky;
+    top: 0;
+  }
+
+  /* Pagination controls tetap di tengah */
+  .pagination-controls {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Modal tetap responsif */
+  .modal-content {
+    max-width: 95vw;
+    width: 90%;
+  }
+
+  /* Mobile: search dan controls stack vertikal */
+  @media (max-width: 768px) {
+    .search-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .search-container,
+    .table-controls {
+      width: 100%;
+    }
+    .results-info {
+      margin-left: 0;
+      margin-top: 8px;
+      text-align: center;
+    }
+    .table-controls {
+      justify-content: center;
+    }
+    .chart-container {
+      min-height: 200px;
           }
         }
       `}</style>
