@@ -861,13 +861,28 @@ async def chatbot_query_post(request: ChatRequest):
         return {"answer": f"Maaf pertanyaan Anda tidak jelas, tolong tanyakan seputar sistem, data permintaan, tren, atau barang terlaris. Contoh: 'Apa itu STARK?'' atau 'Berapa total permintaan unit di tahun 2024?'"}
 
 
+def handle_greeting(question):
+    lower_q = question.lower()
+    if ("halo" in lower_q or "hi" in lower_q or "hai" in lower_q or "hallo" in lower_q
+        or "hello" in lower_q or "selamat pagi" in lower_q or "selamat siang" in lower_q
+        or "selamat sore" in lower_q or "selamat malam" in lower_q or "pagi" in lower_q
+        or "siang" in lower_q or "sore" in lower_q or "malam" in lower_q or "hey" in lower_q
+        or "yo" in lower_q or "hiya" in lower_q or "greetings" in lower_q or "what's up" in lower_q
+        or "wassup" in lower_q or "sup" in lower_q or "hey there" in lower_q or "good morning" in lower_q
+        or "good afternoon" in lower_q or "good evening" in lower_q or "good night" in lower_q
+        or "salut" in lower_q or "shalom" in lower_q):
+        return "Halo! 👋 Saya Asisten Analitik Permintaan. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"
+    elif "assalamualaikum" in lower_q:
+        return "Waalaikumsalam! 👋 Saya Asisten Analitik Permintaan. Siap membantu Anda dengan data permintaan, tren, atau barang terlaris. Silakan tanyakan!"
+    return None
+
 def try_answer_from_database(question, data, year_label, lower_q):
     """
     Coba jawab pertanyaan dari database menggunakan pattern matching
     Return: string (jawaban) atau None (jika tidak cocok)
     """
     # ===== PERTANYAAN TENTANG SISTEM STARK & ABOUT ===== ✅ BARU
-    
+
     # 1. Apa itu STARK?
     if any(keyword in lower_q for keyword in ["apa itu stark", "stark itu apa", "pengertian stark", "definisi stark", "tentang stark"]):
         return (

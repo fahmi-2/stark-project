@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 
 const ChatBotPage = () => {
-  // ✅ Ganti: messages → conversationHistory
-  const [conversationHistory, setConversationHistory] = useState([
+  const [messages, setMessages] = useState([
     {
       sender: "bot",
       text: 'Halo! 👋 Saya adalah Asisten Analitik Permintaan STARK. Tanyakan tentang sistem, data permintaan, tren, atau barang terlaris. Contoh: "Apa itu STARK?" atau "Berapa total permintaan unit di tahun 2024?"',
@@ -15,17 +14,19 @@ const ChatBotPage = () => {
   const messagesEndRef = useRef(null);
   const [isBotTyping, setIsBotTyping] = useState(false);
 
+  // Scroll ke bawah saat ada pesan baru
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [conversationHistory]); // ✅ gunakan conversationHistory
+  }, [messages]);
 
- const handleSendMessage = async (question = null) => {
-  const text = question || inputValue.trim();
-  if (!text) return;
+  // Fungsi untuk mengirim pesan
+  const handleSendMessage = async (question = null) => {
+    const text = question || inputValue;
+    if (text.trim() === "") return;
 
     // Tambahkan pesan user
     setMessages((prev) => [...prev, { sender: "user", text }]);
@@ -67,6 +68,7 @@ const ChatBotPage = () => {
     }
   };
 
+  // Fungsi untuk menangani Enter
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -105,11 +107,12 @@ const ChatBotPage = () => {
       <div className="chatbot-container">
         <div className="chat-header">🤖 Asisten Analitik STARK</div>
         <div className="chat-box" id="chatBox">
-          {/* ✅ Ganti: messages → conversationHistory */}
-          {conversationHistory.map((msg, index) => (
+          {messages.map((msg, index) => (
             <div
               key={index}
-              className={`message ${msg.role === "user" ? "user-message" : "bot-message"}`}
+              className={`message ${
+                msg.sender === "user" ? "user-message" : "bot-message"
+              }`}
             >
               <div 
                 className="message-bubble"
@@ -145,58 +148,17 @@ const ChatBotPage = () => {
               marginRight: "8px",
             }}
           />
-          <div style={{
-  display: "flex", gap: "8px", marginTop: "8px", justifyContent: "center"
-}}>
-  <button 
-    onClick={() => setAiMode("rule")}
-    style={{
-      fontSize: "12px",
-      padding: "4px 8px",
-      backgroundColor: aiMode === "rule" ? "#3b82f6" : "#e2e8f0",
-      color: aiMode === "rule" ? "white" : "#4b5563",
-      border: "1px solid #cbd5e1",
-      borderRadius: "6px"
-    }}
-  >
-    Rule-Based
-  </button>
-  <button 
-    onClick={() => setAiMode("gemini")}
-    style={{
-      fontSize: "12px",
-      padding: "4px 8px",
-      backgroundColor: aiMode === "gemini" ? "#8b5cf6" : "#e2e8f0",
-      color: aiMode === "gemini" ? "white" : "#4b5563",
-      border: "1px solid #cbd5e1",
-      borderRadius: "6px"
-    }}
-  >
-    🟣 Gemini
-  </button>
-  <button 
-    onClick={() => setAiMode("openrouter")}
-    style={{
-      fontSize: "12px",
-      padding: "4px 8px",
-      backgroundColor: aiMode === "openrouter" ? "#10b981" : "#e2e8f0",
-      color: aiMode === "openrouter" ? "white" : "#4b5563",
-      border: "1px solid #cbd5e1",
-      borderRadius: "6px"
-    }}
-  >
-    🟢 OpenRouter
-  </button>
-</div>
           <button
+            id="suggestionChat"
             onClick={() => setShowSuggestions(!showSuggestions)}
-            disabled={isBotTyping}
             style={{
               backgroundColor: "#8b5cf6",
               color: "white",
               border: "none",
               padding: "10px 12px",
-              cursor: isBotTyping ? "not-allowed" : "pointer",
+              borderRadius: "20px",
+              cursor: "pointer",
+              marginRight: "8px",
               fontSize: "12px",
               fontWeight: "600",
             }}
@@ -224,7 +186,6 @@ const ChatBotPage = () => {
         {/* ===== Popup Saran Pertanyaan dengan Tab ===== ✅ BARU */}
         {showSuggestions && (
           <div
-            className="suggestions-popup"
             style={{
               position: "absolute",
               bottom: "70px",
