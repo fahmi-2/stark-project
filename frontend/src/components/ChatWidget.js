@@ -43,8 +43,8 @@ const ChatWidget = () => {
           onClick={() => setOpen(true)}
           style={{
             position: 'fixed',
-            right: '20px',
-            bottom: '20px',
+            right: '50px',
+            bottom: '30px',
             width: '60px',
             height: '60px',
             borderRadius: '50%',
@@ -261,7 +261,7 @@ const ChatWidget = () => {
           border: none !important;
           border-radius: 24px !important;
           cursor: pointer !important;
-          font-size: 14px !important;
+          font-size: 12px !important;
           font-weight: 600 !important;
           transition: all 0.2s ease !important;
         }

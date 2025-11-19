@@ -198,8 +198,8 @@ const ChatBotPage = () => {
               padding: "10px 12px",
               borderRadius: "20px",
               cursor: "pointer",
-              marginRight: "8px",
-              fontSize: "12px",
+              marginRight: "0px",
+              // fontSize: "14px",
               fontWeight: "600",
             }}
           >
