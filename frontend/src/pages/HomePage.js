@@ -11,7 +11,6 @@ import {
   Tooltip,
   Legend,
   Filler,
-  plugins,
 } from "chart.js";
 import { fetchAPI } from "../utils/api";
 

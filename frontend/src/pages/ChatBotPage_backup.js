@@ -36,13 +36,13 @@ const ChatBotPage = () => {
 
   let endpoint = "/api/chatbot-ai"; // default: OpenRouter
   if (aiMode === "rule") endpoint = "/api/chatbot-query?question=" + encodeURIComponent(text);
-  if (aiMode === "gemini") endpoint = "http://localhost:3001/proxy/gemini/chat";
+  if (aiMode === "gemini") endpoint = "/api/chatbot-gemini";
 
   try {
     let response;
     if (aiMode === "rule") {
       // GET request for rule-based
-      response = await fetchAPI(endpoint);  
+      response = await fetchAPI(endpoint);
     } else {
       // POST request for AI models
       response = await fetchAPI(endpoint, {
@@ -72,7 +72,7 @@ const ChatBotPage = () => {
   } finally {
     setIsBotTyping(false);
   }
-}
+};
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter") handleSendMessage();

@@ -170,6 +170,165 @@ const DataManagementPage = () => {
           <i className="fas fa-info-circle"></i> Contoh nilai: <code>2025</code>, <code>IT</code>, <code>mouse</code>, <code>ATK</code>, <code>10</code>, <code>50000</code>, <code>500000</code>, <code>Teknologi</code>
         </p>
       </div>
+            <style jsx>{`
+        .page-header-box {
+          background: white;
+          padding: 24px 32px;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          margin-bottom: 24px;
+          text-align: center;
+        }
+        .page-header-box h1 {
+          font-size: 28px;
+          color: #1e293b;
+          margin: 0 0 12px 0;
+        }
+        .subtitle {
+          color: #64748b;
+          font-size: 16px;
+          max-width: 700px;
+          margin: 0 auto;
+          line-height: 1.6;
+        }
+
+        /* === CSS lainnya (cards, guide, dll) tetap seperti sebelumnya === */
+
+        .cards-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        .data-card {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          text-align: center;
+          transition: transform 0.2s;
+        }
+        .data-card:hover {
+          transform: translateY(-4px);
+        }
+
+        .card-icon {
+          width: 60px;
+          height: 60px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 16px;
+          font-size: 28px;
+        }
+
+        .data-card h3 {
+          font-size: 18px;
+          color: #1e293b;
+          margin: 0 0 12px 0;
+        }
+        .card-desc {
+          color: #64748b;
+          font-size: 14px;
+          margin-bottom: 20px;
+          line-height: 1.5;
+        }
+
+        .btn {
+          padding: 10px 20px;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: opacity 0.2s;
+        }
+        .btn:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .btn-primary { background: #1e40af; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+
+        .upload-alert {
+          padding: 14px 20px;
+          border-radius: 8px;
+          margin: 24px auto;
+          max-width: 600px;
+          font-size: 15px;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .upload-alert.success {
+          background: #d1fae5;
+          color: #065f46;
+          border: 1px solid #a7f3d0;
+        }
+        .upload-alert.error {
+          background: #fee2e2;
+          color: #991b1b;
+          border: 1px solid #fecaca;
+        }
+
+        .guide-card {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          margin-top: 24px;
+        }
+        .guide-card h3 {
+          font-size: 20px;
+          color: #1e293b;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .columns-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 12px;
+          margin: 16px 0;
+        }
+        .column-item {
+          background: #f1f5f9;
+          padding: 10px;
+          border-radius: 6px;
+          font-size: 14px;
+          text-align: center;
+        }
+        .note {
+          color: #64748b;
+          font-size: 14px;
+          margin-top: 16px;
+        }
+        .note code {
+          background: #f1f5f9;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-family: monospace;
+        }
+
+        @media (max-width: 768px) {
+          .cards-container { grid-template-columns: 1fr; }
+          .columns-grid { grid-template-columns: 1fr; }
+          .page-header-box { padding: 20px 16px; }
+        }
+      `}</style>
     </div>
   );
 };
