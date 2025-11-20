@@ -33,7 +33,7 @@ const HomePage = () => {
   const [categoryDemandData, setCategoryDemandData] = useState(null);
   const [error, setError] = useState(null);
   const [selectedYears, setSelectedYears] = useState([2023, 2024, 2025]); // default semua tahun
-
+  const [isLoading, setIsLoading] = useState(true);
   const ALL_YEARS = [2023, 2024, 2025];
 
   // Helper: format Rupiah
@@ -170,7 +170,18 @@ const HomePage = () => {
     );
     return data;
   };
-
+  useEffect(() => {
+  const timer = setTimeout(() => {
+    setIsLoading(false);
+  }, 1500);
+  return () => clearTimeout(timer);
+}, []);
+{isLoading && (
+  <div className="loading-overlay">
+    <div className="loading-spinner"></div>
+    <div className="loading-text">Memuat data...</div>
+  </div>
+)}
   // Efek utama — HANYA DEPEND ON selectedYears
   useEffect(() => {
     const loadData = async () => {

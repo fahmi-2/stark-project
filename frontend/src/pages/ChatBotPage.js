@@ -133,7 +133,7 @@ const ChatBotPage = () => {
   const currentSuggestions = suggestionCategories[selectedCategory];
 
   return (
-    <div className="page-content">
+    
       <div className="chatbot-container">
         <div className="chat-header">
           <img src="/ironman.png" alt="Ironman" style={{ width: '55px', height: '55px'}} />
@@ -339,7 +339,7 @@ const ChatBotPage = () => {
             </div>
           </div>
         )}
-      </div>
+      
 
       <style>{`
         .page-content {

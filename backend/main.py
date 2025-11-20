@@ -1681,8 +1681,8 @@ def try_answer_from_database(question, data, year_label, lower_q):
 
 # === Endpoint: Daftar Semua Unit Pemohon dengan Segmen & Kategori ===
 
-@app.get("/api/unit-pemohon-list")
-async def get_unit_pemohon_list():
+@app.get("/api/unit-pemohon-list/{year}")
+async def get_unit_pemohon_list(year: int):
     try:
         # === Validasi tahun (opsional tapi bagus) ===
         if year not in [2023, 2024, 2025]:
@@ -1758,8 +1758,7 @@ async def get_unit_pemohon_list():
         import traceback
         traceback.print_exc()
         return {"units": []}
-
-
+       
 # === Endpoint: Detail Barang Bulanan per Unit & Tahun ===
 @app.get("/api/unit-item-monthly")
 async def get_unit_item_monthly(unit: str, year: int):

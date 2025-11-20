@@ -6,21 +6,30 @@ const Sidebar = ({ activePage, onNavigate }) => {
     { key: 'home', label: 'Home', icon: 'fa-home' },
     { key: 'unit-analysis', label: 'Analisis Unit Pemohon', icon: 'fa-users' },
     { key: 'item-analysis', label: 'Analisis Barang', icon: 'fa-boxes' },
-    // { key: 'chatbot', label: 'Chatbot Konsultan', icon: 'fa-comments' },
     { key: 'about', label: 'About', icon: 'fa-info-circle' },
   ];
 
   const [hoveredItem, setHoveredItem] = useState(null);
   const [logoHover, setLogoHover] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // untuk mobile toggle
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  
+  // State baru untuk mengizinkan mode 'ikon saja' di desktop
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false); 
 
-  // Deteksi ukuran layar
+  // --- LOGIKA UTAMA LAYOUT ---
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth >= 768) {
-        setIsSidebarOpen(true); // auto buka di desktop
+      const mobileBreakPoint = 768;
+      const currentIsMobile = window.innerWidth < mobileBreakPoint;
+      setIsMobile(currentIsMobile);
+
+      if (!currentIsMobile) {
+        // Desktop: Pastikan sidebar terbuka penuh (jika tidak dalam mode collapsed)
+        setIsSidebarOpen(true); 
+      } else {
+        // Mobile: Default tertutup
+        setIsSidebarOpen(false);
       }
     };
 
@@ -35,12 +44,47 @@ const Sidebar = ({ activePage, onNavigate }) => {
     if (isMobile) setIsSidebarOpen(false);
   };
 
-  // Styles
-  const sidebarWidth = isMobile ? '280px' : '280px';
-  const isCollapsed = isMobile && !isSidebarOpen;
+  // Lebar Sidebar
+  const sidebarWidth = isDesktopCollapsed ? '70px' : '280px';
+  
+  // Mobile: Sidebar tersembunyi, Desktop: Sidebar normal
+  const isHiddenOnMobile = isMobile && !isSidebarOpen;
+  
+  // Lebar yang sebenarnya digunakan dalam style
+  const actualWidth = isMobile ? (isSidebarOpen ? '280px' : '0') : sidebarWidth;
+  
+  // Transformasi untuk menyembunyikan/menampilkan
+  const transformStyle = isHiddenOnMobile ? 'translateX(-100%)' : 'translateX(0)';
 
   return (
     <>
+      {/* Tombol Toggle untuk mobile */}
+      {isMobile && (
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          style={{
+            position: 'fixed',
+            top: '16px',
+            left: '16px',
+            zIndex: 1002, /* Lebih tinggi dari overlay */
+            background: '#3b82f6',
+            color: 'white',
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+            cursor: 'pointer',
+          }}
+          aria-label={isSidebarOpen ? 'Tutup menu' : 'Buka menu'}
+        >
+          <i className={`fas ${isSidebarOpen ? 'fa-times' : 'fa-bars'}`} />
+        </button>
+      )}
+
       {/* Overlay untuk mobile */}
       {isMobile && isSidebarOpen && (
         <div
@@ -63,7 +107,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
           top: 0,
           left: 0,
           height: '100vh',
-          width: isCollapsed ? '0' : sidebarWidth,
+          width: actualWidth,
           background: 'linear-gradient(180deg, #003d82 0%, #001d3d 100%)',
           display: 'flex',
           flexDirection: 'column',
@@ -72,7 +116,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           boxSizing: 'border-box',
           transition: 'width 0.3s ease, transform 0.3s ease',
-          transform: isCollapsed ? 'translateX(-100%)' : 'translateX(0)',
+          transform: transformStyle,
           overflowX: 'hidden',
           overflowY: 'auto',
         }}
@@ -86,9 +130,13 @@ const Sidebar = ({ activePage, onNavigate }) => {
             alignItems: 'center',
             background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
             borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
+            minHeight: isDesktopCollapsed ? '100px' : 'auto',
           }}
         >
           <div
+            onClick={() => {
+              if (!isMobile) setIsDesktopCollapsed(!isDesktopCollapsed);
+            }}
             style={{
               position: 'relative',
               padding: '12px',
@@ -101,8 +149,8 @@ const Sidebar = ({ activePage, onNavigate }) => {
               transition: 'all 0.3s ease',
               overflow: 'hidden',
               cursor: 'pointer',
-              width: '100%',
-              maxWidth: isCollapsed ? '50px' : '180px',
+              width: isDesktopCollapsed ? '46px' : '100%',
+              maxWidth: isDesktopCollapsed ? '46px' : '180px',
             }}
             onMouseEnter={() => setLogoHover(true)}
             onMouseLeave={() => setLogoHover(false)}
@@ -130,6 +178,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
           {menuItems.map((item) => {
             const isActive = activePage === item.key;
             const isHovered = hoveredItem === item.key;
+            const isMenuCollapsed = !isMobile && isDesktopCollapsed;
 
             return (
               <div
@@ -139,7 +188,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '14px',
-                  padding: isCollapsed ? '16px' : '14px 18px',
+                  padding: isMenuCollapsed ? '16px' : '14px 18px',
                   margin: '6px 0',
                   borderRadius: '12px',
                   color: isActive || isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.85)',
@@ -153,13 +202,13 @@ const Sidebar = ({ activePage, onNavigate }) => {
                     ? 'rgba(255, 255, 255, 0.08)'
                     : 'transparent',
                   transform: isActive ? 'translateX(6px)' : isHovered ? 'translateX(4px)' : 'translateX(0)',
-                  justifyContent: isCollapsed ? 'center' : 'flex-start',
-                  whiteSpace: isCollapsed ? 'nowrap' : 'normal',
+                  justifyContent: isMenuCollapsed ? 'center' : 'flex-start',
+                  whiteSpace: isMenuCollapsed ? 'nowrap' : 'normal',
                 }}
                 onClick={() => handleNav(item.key)}
                 onMouseEnter={() => setHoveredItem(item.key)}
                 onMouseLeave={() => setHoveredItem(null)}
-                aria-label={isCollapsed ? item.label : undefined}
+                aria-label={isMenuCollapsed ? item.label : undefined}
               >
                 <span
                   style={{
@@ -179,14 +228,18 @@ const Sidebar = ({ activePage, onNavigate }) => {
                     transform: isHovered || isActive ? 'scale(1.1)' : 'scale(1)',
                   }}
                 >
-                  <i className={`fas ${item.icon}`} />
+                  {/* FIX: Menggunakan backtick (`) untuk template literal */}
+                  <i className={`fas ${item.icon}`} /> 
                 </span>
-                {!isCollapsed && (
+                
+                {/* Teks hanya ditampilkan jika TIDAK collapsed di desktop */}
+                {!isMenuCollapsed && (
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.label}
                   </span>
                 )}
-                {isActive && !isCollapsed && (
+                
+                {isActive && !isMenuCollapsed && (
                   <div
                     style={{
                       position: 'absolute',
@@ -206,12 +259,12 @@ const Sidebar = ({ activePage, onNavigate }) => {
           })}
         </div>
 
-        {/* Upload Data - Bottom (non-sticky di mobile) */}
+        {/* Upload Data - Bottom */}
         <div
           style={{
             padding: '0 12px 20px',
-            borderTop: isCollapsed ? 'none' : '2px solid rgba(255, 255, 255, 0.1)',
-            ...(isCollapsed
+            borderTop: isDesktopCollapsed ? 'none' : '2px solid rgba(255, 255, 255, 0.1)',
+            ...(isDesktopCollapsed
               ? {
                   display: 'flex',
                   justifyContent: 'center',
@@ -232,7 +285,7 @@ const Sidebar = ({ activePage, onNavigate }) => {
               display: 'flex',
               alignItems: 'center',
               gap: '14px',
-              padding: isCollapsed ? '16px' : '14px 18px',
+              padding: isDesktopCollapsed ? '16px' : '14px 18px',
               borderRadius: '12px',
               color:
                 activePage === 'data-management' || hoveredItem === 'data-management'
@@ -246,17 +299,17 @@ const Sidebar = ({ activePage, onNavigate }) => {
                   ? 'linear-gradient(135deg, rgba(255, 107, 107, 0.2), rgba(255, 68, 68, 0.15))'
                   : hoveredItem === 'data-management'
                   ? 'rgba(255, 255, 255, 0.1)'
-                  : isCollapsed
+                  : isDesktopCollapsed
                   ? 'transparent'
                   : 'rgba(0, 0, 0, 0.15)',
               transform:
                 activePage === 'data-management' ? 'translateX(6px)' : 'translateX(0)',
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              justifyContent: isDesktopCollapsed ? 'center' : 'flex-start',
             }}
             onClick={() => handleNav('data-management')}
             onMouseEnter={() => setHoveredItem('data-management')}
             onMouseLeave={() => setHoveredItem(null)}
-            aria-label={isCollapsed ? 'Upload Data' : undefined}
+            aria-label={isDesktopCollapsed ? 'Upload Data' : undefined}
           >
             <span
               style={{
@@ -275,8 +328,8 @@ const Sidebar = ({ activePage, onNavigate }) => {
             >
               <i className="fas fa-database" />
             </span>
-            {!isCollapsed && <span style={{ flex: 1 }}>Upload Data</span>}
-            {activePage === 'data-management' && !isCollapsed && (
+            {!isDesktopCollapsed && <span style={{ flex: 1 }}>Upload Data</span>}
+            {activePage === 'data-management' && !isDesktopCollapsed && (
               <div
                 style={{
                   position: 'absolute',
@@ -294,33 +347,6 @@ const Sidebar = ({ activePage, onNavigate }) => {
           </div>
         </div>
       </div>
-
-      {/* Toggle Button (hanya di mobile) */}
-      {isMobile && (
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          style={{
-            position: 'fixed',
-            top: '16px',
-            left: '16px',
-            zIndex: 1001,
-            background: '#3b82f6',
-            color: 'white',
-            width: '44px',
-            height: '44px',
-            borderRadius: '50%',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            cursor: 'pointer',
-          }}
-          aria-label={isSidebarOpen ? 'Tutup menu' : 'Buka menu'}
-        >
-          <i className={`fas ${isSidebarOpen ? 'fa-times' : 'fa-bars'}`} />
-        </button>
-      )}
     </>
   );
 };
