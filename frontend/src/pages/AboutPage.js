@@ -260,7 +260,7 @@ const AboutPage = () => {
             <div className="tips-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginTop: '20px' }}>
               {[
                 { icon: 'fas fa-mouse-pointer', title: 'Interaksi dengan Chart', desc: 'Hover grafik untuk melihat detail.' },
-                { icon: 'fas fa-compare', title: 'Bandingkan Antar Tahun', desc: 'Pilih multiple tahun untuk perbandingan tren.' },
+                { icon: 'fas fa-sync', title: 'Bandingkan Antar Tahun', desc: 'Pilih multiple tahun untuk perbandingan tren.' },
                 { icon: 'fas fa-search', title: 'Cari Data Spesifik', desc: 'Navigasi data dengan cepat menggunakan search.' },
                 { icon: 'fas fa-comments', title: 'Tanya ChatBot', desc: 'Gunakan AI untuk mendapatkan jawaban cepat.' }
               ].map((item, idx) => (

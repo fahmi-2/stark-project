@@ -1223,3 +1223,16 @@ tr:hover {
     font-size: 12px;
   }
 }
+
+
+/* ===== CHATBOT BLUR EFFECT ===== */
+body.chatbot-open {
+  overflow: hidden;
+}
+
+body.chatbot-open .main-content,
+body.chatbot-open .sidebar {
+  filter: blur(100px) brightness(0.5);
+  transition: filter 0.3s ease;
+  pointer-events: none;
+}
